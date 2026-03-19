@@ -1,0 +1,43 @@
+name: Deploy to Server
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy notification
+      run: |
+        echo "Deploying to ${{ inputs.environment }} environment"
+        echo "This workflow is ready for custom deployment logic"
+
+    # Example deployment steps (customize based on your server setup)
+    - name: Setup SSH key
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+
+    - name: Deploy with rsync
+      run: |
+        echo "Ready to deploy via SSH/rsync"
+        # Example: rsync -avz --delete ./dist/ user@server:/var/www/app/
+
+    - name: Health check
+      run: |
+        echo "Deployment completed, health check ready"
+        # Example: curl -f https://your-domain.com/actuator/health

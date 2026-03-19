@@ -8,6 +8,8 @@ import java.util.List;
 public interface ShipmentRepository extends JpaRepository<Shipment, Long> {
     List<Shipment> findBySupplierId(Long supplierId);
 
+    List<Shipment> findByTransportModeId(Long transportModeId);
+
     @Query("SELECT SUM(s.calculatedCarbonEmission) FROM Shipment s")
     Double sumAllCarbonEmissions();
 }
