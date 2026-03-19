@@ -1,0 +1,62 @@
+package com.greenchain.backend.service;
+
+import com.greenchain.backend.model.Shipment;
+import com.greenchain.backend.model.TransportMode;
+import com.greenchain.backend.repository.ShipmentRepository;
+import com.greenchain.backend.repository.SupplierRepository;
+import com.greenchain.backend.repository.TransportModeRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+public class CarbonCalculationService {
+
+    @Autowired
+    private ShipmentRepository shipmentRepository;
+
+    @Autowired
+    private SupplierRepository supplierRepository;
+
+    @Autowired
+    private TransportModeRepository transportModeRepository;
+
+    // 碳排放 = 距离 × 排放系数 × 数量
+    public Double calculateEmission(Double distanceKm, Double emissionFactor, Double weightTons) {
+        if (distanceKm == null || emissionFactor == null || weightTons == null) {
+            return 0.0;
+        }
+        return distanceKm * emissionFactor * weightTons;
+    }
+
+    // 计算单个运输的碳排放
+    public Shipment calculateShipmentEmission(Shipment shipment) {
+        // 确保 supplier 和 transportMode 是完整的对象
+        if (shipment.getSupplier() != null && shipment.getSupplier().getId() != null) {
+            shipment.setSupplier(supplierRepository.findById(shipment.getSupplier().getId()).orElse(null));
+        }
+        if (shipment.getTransportMode() != null && shipment.getTransportMode().getId() != null) {
+            shipment.setTransportMode(transportModeRepository.findById(shipment.getTransportMode().getId()).orElse(null));
+        }
+
+        TransportMode mode = shipment.getTransportMode();
+        if (mode != null && mode.getEmissionFactorPerKmPerTon() != null) {
+            Double emission = calculateEmission(
+                    shipment.getDistanceKm(),
+                    mode.getEmissionFactorPerKmPerTon(),
+                    shipment.getCargoWeightTons()
+            );
+            shipment.setCalculatedCarbonEmission(emission);
+            shipment.setCalculationTimestamp(LocalDateTime.now());
+        }
+
+        return shipmentRepository.save(shipment);
+    }
+
+    // 批量计算
+    public List<Shipment> calculateBatchEmissions(List<Shipment> shipments) {
+        shipments.forEach(this::calculateShipmentEmission);
+        return shipmentRepository.saveAll(shipments);
+    }
+}
