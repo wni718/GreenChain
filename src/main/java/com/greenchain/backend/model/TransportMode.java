@@ -5,15 +5,20 @@ import lombok.Data;
 
 @Entity
 @Data
+@Table(name = "transport_mode")
 public class TransportMode {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "mode", nullable = false)
     private ModeType mode;
 
+    @Column(name = "display_name")
     private String displayName;
+    
+    @Column(name = "emission_factor_per_km_per_ton")
     private Double emissionFactorPerKmPerTon;
 
     public enum ModeType {

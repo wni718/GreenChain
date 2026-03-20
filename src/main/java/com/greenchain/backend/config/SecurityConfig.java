@@ -39,6 +39,8 @@ public class SecurityConfig {
                 .authenticationProvider(authenticationProvider)
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/recommend").permitAll()
+                        .requestMatchers("/api/carbon/calculate").permitAll()
                         .requestMatchers("/test").permitAll()
                         .requestMatchers("/api/suppliers/**").hasAnyRole("ADMIN", "SUSTAINABILITY_MANAGER")
                         .requestMatchers("/api/shipments/**").hasAnyRole("ADMIN", "SUSTAINABILITY_MANAGER", "SUPPLIER")
