@@ -20,7 +20,7 @@ public class OptimizationService {
     @Autowired
     private TransportModeRepository transportModeRepository;
 
-    // 推荐更环保的供应商
+    // Recommend more environmentally friendly suppliers
     public Map<String, Object> recommendGreenerSupplier(Long currentSupplierId) {
         Optional<Supplier> currentOpt = supplierRepository.findById(currentSupplierId);
         if (currentOpt.isEmpty()) {
@@ -47,16 +47,16 @@ public class OptimizationService {
             result.put("currentEmissionFactor", current.getEmissionFactorPerUnit());
             result.put("recommendedEmissionFactor", better.getEmissionFactorPerUnit());
             result.put("reductionPercentage", String.format("%.1f", reduction));
-            result.put("message", String.format("如果选择 %s，可减少 %.1f%% 碳排放",
+            result.put("message", String.format("If you choose %s, it can reduce carbon emissions by %.1f%%",
                     better.getName(), reduction));
         } else {
             result.put("hasRecommendation", false);
-            result.put("message", "当前供应商已是最环保的选择");
+            result.put("message", "The current supplier is already the most environmentally friendly choice");
         }
         return result;
     }
 
-    // 推荐更环保的运输方式
+    // Recommend more environmentally friendly transportation methods
     public Map<String, Object> recommendGreenerTransport(String currentMode) {
         List<TransportMode> modes = transportModeRepository.findAll();
 
@@ -85,11 +85,11 @@ public class OptimizationService {
             result.put("currentEmissionFactor", current.getEmissionFactorPerKmPerTon());
             result.put("recommendedEmissionFactor", better.getEmissionFactorPerKmPerTon());
             result.put("reductionPercentage", String.format("%.1f", reduction));
-            result.put("message", String.format("如果改成 %s，可减少 %.1f%% 碳排放",
+            result.put("message", String.format("If changed to %s, it can reduce carbon emissions by %.1f%%",
                     better.getDisplayName(), reduction));
         } else {
             result.put("hasRecommendation", false);
-            result.put("message", "当前运输方式已是最环保的选择");
+            result.put("message", "The current mode of transportation is already the most environmentally friendly choice");
         }
         return result;
     }

@@ -22,7 +22,7 @@ public class CarbonCalculationService {
     @Autowired
     private TransportModeRepository transportModeRepository;
 
-    // 碳排放 = 距离 × 排放系数 × 数量
+    // Carbon emissions=distance x emission factor x quantity
     public Double calculateEmission(Double distanceKm, Double emissionFactor, Double weightTons) {
         if (distanceKm == null || emissionFactor == null || weightTons == null) {
             return 0.0;
@@ -30,9 +30,9 @@ public class CarbonCalculationService {
         return distanceKm * emissionFactor * weightTons;
     }
 
-    // 计算单个运输的碳排放
+    // Calculate the carbon emissions of a single transportation
     public Shipment calculateShipmentEmission(Shipment shipment) {
-        // 确保 supplier 和 transportMode 是完整的对象
+        // Ensure that the supplier and transportMode are complete objects
         if (shipment.getSupplier() != null && shipment.getSupplier().getId() != null) {
             shipment.setSupplier(supplierRepository.findById(shipment.getSupplier().getId()).orElse(null));
         }
@@ -54,7 +54,7 @@ public class CarbonCalculationService {
         return shipmentRepository.save(shipment);
     }
 
-    // 批量计算
+    // batch computing
     public List<Shipment> calculateBatchEmissions(List<Shipment> shipments) {
         shipments.forEach(this::calculateShipmentEmission);
         return shipmentRepository.saveAll(shipments);

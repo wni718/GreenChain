@@ -64,9 +64,9 @@ public class CarbonLogicService {
 
         Double bestFactor = best.getEmissionFactorPerKmPerTon();
         double savingPercent = (currentFactor - bestFactor) / currentFactor * 100.0;
-        if (savingPercent < 0) savingPercent = 0; // 防止浮点/数据异常导致负数
+        if (savingPercent < 0) savingPercent = 0; // Prevent floating point/data exceptions from causing negative numbers
 
-        // 按需求返回形如 "30%" 的字符串
+        // Return a string in the form of "30%" as required
         String saving = Math.round(savingPercent) + "%";
 
         return new RecommendResponse(best.getMode().name().toLowerCase(), saving);

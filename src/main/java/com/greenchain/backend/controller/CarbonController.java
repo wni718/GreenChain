@@ -36,7 +36,7 @@ public class CarbonController {
     }
 
     /**
-     * 最简单的碳排放计算接口：distance_km * emission_factor(mode) * cargo_weight_tons
+     * The simplest carbon emission calculation interface: distance_km * emission_factor(mode) * cargo_weight_tons
      */
     @PostMapping("/calculate")
     public CarbonCalculateResponse calculateCarbon(@RequestBody CarbonCalculateRequest request) {

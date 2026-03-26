@@ -24,7 +24,7 @@ public class ShipmentController {
 
     @PostMapping
     public Shipment createShipment(@RequestBody Shipment shipment) {
-        // 创建时自动计算碳排放
+        // Automatically calculate carbon emissions during creation
         return carbonService.calculateShipmentEmission(shipment);
     }
 
