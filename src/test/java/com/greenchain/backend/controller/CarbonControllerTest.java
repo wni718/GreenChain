@@ -23,7 +23,6 @@ import java.time.LocalDate;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static org.hamcrest.Matchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -186,6 +185,35 @@ class CarbonControllerTest {
         mockMvc.perform(get("/api/carbon/optimize/transport/INVALID"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.error").value("Transport mode not found"));
+    }
+
+    @Test
+    @DisplayName("Carbon emissions calculation: POST /api/carbon/calculate normal calculation")
+    void testCarbonCalculate_Success() throws Exception {
+        mockMvc.perform(post("/api/carbon/calculate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"distance_km\":100.0,\"cargo_weight_tons\":10.0,\"mode\":\"truck\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.carbon_kg_co2e").value(200.0))
+                .andExpect(jsonPath("$.unit").value("kg CO2e"));
+    }
+
+    @Test
+    @DisplayName("Carbon emissions calculation: Unknown transportation method returns 400")
+    void testCarbonCalculate_UnknownMode() throws Exception {
+        mockMvc.perform(post("/api/carbon/calculate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"distance_km\":100.0,\"cargo_weight_tons\":10.0,\"mode\":\"invalid\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Carbon emissions calculation: Missing distance_km, return 400")
+    void testCarbonCalculate_MissingDistance() throws Exception {
+        mockMvc.perform(post("/api/carbon/calculate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"distance_km\":null,\"cargo_weight_tons\":10.0,\"mode\":\"truck\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
