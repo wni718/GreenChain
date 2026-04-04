@@ -1,0 +1,116 @@
+/* Login / Register / Reset Password 共用 */
+
+.auth-form-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: #fff;
+  min-height: 0;
+}
+
+.auth-form-panel {
+  width: 100%;
+  max-width: 400px;
+  padding: 2.25rem 2rem;
+  background: #d5e9ce;
+  border-radius: 0;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.auth-form-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 1000;
+  text-align: center;
+  color: #528951;
+}
+
+.auth-form-input {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: none;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 1rem;
+  font-family: inherit;
+  font-weight: 500;
+  color: #2d3a2d;
+}
+
+.auth-form-input::placeholder {
+  color: #c4cfc1;
+  opacity: 1;
+}
+
+.auth-form-input::-webkit-input-placeholder {
+  color: #c4cfc1;
+}
+
+.auth-form-input::-moz-placeholder {
+  color: #c4cfc1;
+  opacity: 1;
+}
+
+.auth-form-input:focus {
+  outline: 2px solid #71ad75;
+  outline-offset: 2px;
+}
+
+.auth-form-link {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e00ff;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-family: inherit;
+}
+
+.auth-form-link:hover {
+  color: #1800cc;
+}
+
+.auth-form-submit {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 0;
+  background: #528951;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.auth-form-submit:hover {
+  background: #467845;
+}
+
+.auth-form-submit:active {
+  background: #3f6d3e;
+}
+
+.auth-form-msg {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.auth-form-msg--err {
+  color: #b42318;
+}
+
+.auth-form-msg--info {
+  color: #3d4a3d;
+}

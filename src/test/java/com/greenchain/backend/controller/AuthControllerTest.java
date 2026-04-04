@@ -15,6 +15,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.hamcrest.Matchers.*;
@@ -110,7 +113,24 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isOk())
-                .andExpect(content().string("登录成功"));
+                .andExpect(jsonPath("$.username").value("logintest"))
+                .andExpect(jsonPath("$.email").value("login@example.com"));
+    }
+
+    @Test
+    @DisplayName("按用户名查询公开资料")
+    void testAccountByUsername() throws Exception {
+        User user = new User();
+        user.setUsername("accttest");
+        user.setEmail("acct@example.com");
+        user.setPassword(passwordEncoder.encode("p"));
+        user.setRole(User.Role.VIEWER);
+        userRepository.save(user);
+
+        mockMvc.perform(get("/api/auth/account/accttest"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("accttest"))
+                .andExpect(jsonPath("$.email").value("acct@example.com"));
     }
 
     @Test
@@ -132,7 +152,7 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().string("用户名或密码错误"));
+                .andExpect(content().string("Username / password incorrect"));
     }
 
     @Test
@@ -146,7 +166,7 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().string("用户名或密码错误"));
+                .andExpect(content().string("Username / password incorrect"));
     }
 
     @Test
@@ -201,5 +221,78 @@ class AuthControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.role").value(role.name()));
         }
+    }
+
+    @Test
+    @DisplayName("重置密码：成功后可使用新密码校验")
+    void testResetPassword_Success() throws Exception {
+        User u = new User();
+        u.setUsername("reset_u1");
+        u.setEmail("reset1@example.com");
+        u.setPassword(passwordEncoder.encode("oldSecret"));
+        u.setRole(User.Role.VIEWER);
+        userRepository.save(u);
+
+        Map<String, String> body = Map.of(
+                "email", "reset1@example.com",
+                "newPassword", "newSecret",
+                "confirmPassword", "newSecret"
+        );
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("密码已更新")));
+
+        User updated = userRepository.findByEmail("reset1@example.com").orElseThrow();
+        assertTrue(passwordEncoder.matches("newSecret", updated.getPassword()));
+        assertFalse(passwordEncoder.matches("oldSecret", updated.getPassword()));
+    }
+
+    @Test
+    @DisplayName("重置密码：新密码与旧密码相同则拒绝")
+    void testResetPassword_SameAsOldRejected() throws Exception {
+        User u = new User();
+        u.setUsername("reset_u2");
+        u.setEmail("reset2@example.com");
+        u.setPassword(passwordEncoder.encode("samePass"));
+        u.setRole(User.Role.VIEWER);
+        userRepository.save(u);
+
+        Map<String, String> body = Map.of(
+                "email", "reset2@example.com",
+                "newPassword", "samePass",
+                "confirmPassword", "samePass"
+        );
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string("新密码不可以与旧密码相同"));
+    }
+
+    @Test
+    @DisplayName("重置密码：两次新密码不一致")
+    void testResetPassword_ConfirmMismatch() throws Exception {
+        User u = new User();
+        u.setUsername("reset_u3");
+        u.setEmail("reset3@example.com");
+        u.setPassword(passwordEncoder.encode("p"));
+        u.setRole(User.Role.VIEWER);
+        userRepository.save(u);
+
+        Map<String, String> body = Map.of(
+                "email", "reset3@example.com",
+                "newPassword", "a",
+                "confirmPassword", "b"
+        );
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string("两次输入的新密码不一致"));
     }
 }
