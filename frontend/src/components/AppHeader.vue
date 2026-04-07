@@ -2,6 +2,7 @@
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import UserAvatar from './UserAvatar.vue'
+import brandLogoUrl from '../assets/GreenChain_logo.jpg'
 
 const router = useRouter()
 const { currentUser } = useAuth()
@@ -21,7 +22,10 @@ function goHome() {
 
 <template>
   <header class="top-bar">
-    <button type="button" class="brand" @click="goHome">GreenChain</button>
+    <button type="button" class="brand" @click="goHome">
+      <img :src="brandLogoUrl" alt="GreenChain logo" class="brand-logo" />
+      <span class="brand-text">GreenChain</span>
+    </button>
     <button type="button" class="user-chip" @click="onUserChipClick">
       <span class="avatar" aria-hidden="true">
         <UserAvatar :size="28" />
@@ -43,15 +47,28 @@ function goHome() {
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   margin: 0;
   padding: 0;
   border: none;
   background: none;
+  cursor: pointer;
+}
+
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.brand-text {
   font-size: 1.25rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: #fff;
-  cursor: pointer;
   font-family: inherit;
 }
 
