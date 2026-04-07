@@ -118,6 +118,29 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("登录：使用邮箱成功")
+    void testLogin_WithEmail_Success() throws Exception {
+        User user = new User();
+        user.setUsername("emailLoginUser");
+        user.setEmail("email-login@example.com");
+        user.setPassword(passwordEncoder.encode("correctpassword"));
+        user.setRole(User.Role.VIEWER);
+        user.setEnabled(true);
+        userRepository.save(user);
+
+        User loginRequest = new User();
+        loginRequest.setEmail("email-login@example.com");
+        loginRequest.setPassword("correctpassword");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("emailLoginUser"))
+                .andExpect(jsonPath("$.email").value("email-login@example.com"));
+    }
+
+    @Test
     @DisplayName("按用户名查询公开资料")
     void testAccountByUsername() throws Exception {
         User user = new User();

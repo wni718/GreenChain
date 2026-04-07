@@ -22,10 +22,21 @@ public class AuthController {
 
     @PostMapping(value = "/login", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> login(@RequestBody User loginUser) {
-        User user = userRepository.findByUsername(loginUser.getUsername()).orElse(null);
+        String email = loginUser.getEmail() != null ? loginUser.getEmail().trim() : "";
+        String username = loginUser.getUsername() != null ? loginUser.getUsername().trim() : "";
+
+        // 优先按邮箱登录；为空时回退用户名，兼容旧前端请求
+        User user = null;
+        if (!email.isEmpty()) {
+            user = userRepository.findByEmail(email).orElse(null);
+        }
+        if (user == null && !username.isEmpty()) {
+            user = userRepository.findByUsername(username).orElse(null);
+        }
+
         if (user != null && passwordEncoder.matches(loginUser.getPassword(), user.getPassword())) {
-            String email = user.getEmail() != null ? user.getEmail() : "";
-            return ResponseEntity.ok(new AuthProfileResponse(user.getUsername(), email));
+            String profileEmail = user.getEmail() != null ? user.getEmail() : "";
+            return ResponseEntity.ok(new AuthProfileResponse(user.getUsername(), profileEmail));
         }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .contentType(MediaType.TEXT_PLAIN)

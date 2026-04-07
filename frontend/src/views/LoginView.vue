@@ -7,7 +7,7 @@ import { formatErrorBody } from '../utils/apiError'
 const router = useRouter()
 const { setLoggedIn } = useAuth()
 
-const emailOrUser = ref('')
+const email = ref('')
 const password = ref('')
 const message = ref('')
 
@@ -18,14 +18,14 @@ async function onSubmit() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: emailOrUser.value,
+        email: email.value,
         password: password.value,
       }),
     })
     if (res.ok) {
       const profile = await res.json()
       setLoggedIn({
-        username: profile.username ?? emailOrUser.value,
+        username: profile.username ?? email.value,
         email: profile.email != null && profile.email !== '' ? String(profile.email) : '',
       })
       router.push({ name: 'home' })
@@ -53,9 +53,9 @@ function goReset() {
     <form class="auth-form-panel" @submit.prevent="onSubmit">
       <h1 class="auth-form-title">Log in</h1>
       <input
-        v-model="emailOrUser"
-        type="text"
-        autocomplete="username"
+        v-model="email"
+        type="email"
+        autocomplete="email"
         class="auth-form-input"
         placeholder="Email Address"
         aria-label="Email Address"
