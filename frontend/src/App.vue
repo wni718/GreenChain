@@ -10,7 +10,7 @@ let hideTimer = null
 
 function onBrandAnimEnd() {
   if (fadingOut.value) return
-  // 标题动画结束后，再进行 2 秒淡出
+  // After title animation, fade out over 2s
   fadingOut.value = true
   hideTimer = window.setTimeout(() => {
     showSplash.value = false

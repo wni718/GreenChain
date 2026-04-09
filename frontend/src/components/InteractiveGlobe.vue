@@ -81,7 +81,7 @@ function initGlobe() {
         `<div style="padding:4px 6px;"><b>${d.city}</b><br/>${d.country}<br/><span style="opacity:.85;">${d.continent}</span></div>`
     )
 
-  // 国家悬浮高亮 + 名称
+  // Country hover highlight + label
   fetch(GEOJSON_URL)
     .then((r) => r.json())
     .then((geojson) => {
@@ -106,7 +106,7 @@ function initGlobe() {
         })
     })
     .catch(() => {
-      // 国家边界加载失败时，至少保留可旋转地球和城市点
+      // If country borders fail to load, keep the globe and city points
     })
 
   const controls = globeInstance.controls()

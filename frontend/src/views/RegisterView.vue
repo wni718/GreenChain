@@ -10,6 +10,7 @@ const { setLoggedIn } = useAuth()
 const email = ref('')
 const username = ref('')
 const password = ref('')
+const role = ref('VIEWER')
 const message = ref('')
 
 async function onSubmit() {
@@ -22,6 +23,7 @@ async function onSubmit() {
         username: username.value,
         email: email.value,
         password: password.value,
+        role: role.value,
       }),
     })
     const text = await res.text()
@@ -35,6 +37,8 @@ async function onSubmit() {
       setLoggedIn({
         username: user?.username ?? username.value,
         email: user?.email ?? email.value,
+        role: user?.role ?? role.value,
+        password: password.value,
       })
       router.push({ name: 'home' })
       return
@@ -42,7 +46,7 @@ async function onSubmit() {
     message.value = formatErrorBody(res.status, text)
   } catch {
     message.value =
-      '无法连接服务器。请确认：1) 后端已在 8080 启动；2) 使用 npm run dev（或 npm run preview）以便将 /api 代理到后端。'
+      'Cannot reach the server. Check that the backend is on port 8080 and that you run npm run dev (or npm run preview) so /api is proxied.'
   }
 }
 
@@ -79,6 +83,11 @@ function goLogin() {
         placeholder="Password"
         aria-label="Password"
       />
+      <select v-model="role" class="auth-form-input" aria-label="Role">
+        <option value="SUSTAINABILITY_MANAGER">Sustainability manager</option>
+        <option value="SUPPLIER">Supplier</option>
+        <option value="VIEWER">Viewer</option>
+      </select>
       <p v-if="message" class="auth-form-msg auth-form-msg--err">{{ message }}</p>
       <button type="button" class="auth-form-link" @click="goLogin">Back to Log in</button>
       <button type="submit" class="auth-form-submit">Register</button>

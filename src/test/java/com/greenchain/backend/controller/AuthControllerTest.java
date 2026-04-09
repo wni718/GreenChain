@@ -72,9 +72,8 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("注册新用户：用户已存在应失败")
-    @org.junit.jupiter.api.Disabled("跳过：需要后端添加全局异常处理")
-    void testRegister_UserAlreadyExists() throws Exception {
+    @DisplayName("Register: duplicate username returns 400")
+    void testRegister_DuplicateUsername_400() throws Exception {
         User existingUser = new User();
         existingUser.setUsername("uniqueexistinguser");
         existingUser.setEmail("uniqueexisting@example.com");
@@ -91,7 +90,31 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(newUser)))
-                .andExpect(status().is5xxServerError());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string("Username already exists"));
+    }
+
+    @Test
+    @DisplayName("Register: duplicate email returns 400")
+    void testRegister_DuplicateEmail_400() throws Exception {
+        User existingUser = new User();
+        existingUser.setUsername("u1");
+        existingUser.setEmail("dup@example.com");
+        existingUser.setPassword(passwordEncoder.encode("password"));
+        existingUser.setRole(User.Role.VIEWER);
+        userRepository.save(existingUser);
+
+        User newUser = new User();
+        newUser.setUsername("u2");
+        newUser.setEmail("dup@example.com");
+        newUser.setPassword("password123");
+        newUser.setRole(User.Role.VIEWER);
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(newUser)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string("Email already exists"));
     }
 
     @Test
@@ -114,7 +137,8 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("logintest"))
-                .andExpect(jsonPath("$.email").value("login@example.com"));
+                .andExpect(jsonPath("$.email").value("login@example.com"))
+                .andExpect(jsonPath("$.role").value("VIEWER"));
     }
 
     @Test
@@ -137,7 +161,8 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("emailLoginUser"))
-                .andExpect(jsonPath("$.email").value("email-login@example.com"));
+                .andExpect(jsonPath("$.email").value("email-login@example.com"))
+                .andExpect(jsonPath("$.role").value("VIEWER"));
     }
 
     @Test
@@ -153,7 +178,8 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/auth/account/accttest"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("accttest"))
-                .andExpect(jsonPath("$.email").value("acct@example.com"));
+                .andExpect(jsonPath("$.email").value("acct@example.com"))
+                .andExpect(jsonPath("$.role").value("VIEWER"));
     }
 
     @Test
@@ -266,7 +292,7 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("密码已更新")));
+                .andExpect(content().string(containsString("Password updated")));
 
         User updated = userRepository.findByEmail("reset1@example.com").orElseThrow();
         assertTrue(passwordEncoder.matches("newSecret", updated.getPassword()));
@@ -293,7 +319,7 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string("新密码不可以与旧密码相同"));
+                .andExpect(content().string("The new password must be different from the old password."));
     }
 
     @Test
@@ -316,6 +342,6 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string("两次输入的新密码不一致"));
+                .andExpect(content().string("The two new passwords do not match."));
     }
 }
