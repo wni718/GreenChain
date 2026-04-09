@@ -1,9 +1,10 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { formatErrorBody } from '../utils/apiError'
 
+const route = useRoute()
 const router = useRouter()
 const { setLoggedIn } = useAuth()
 
@@ -27,15 +28,22 @@ async function onSubmit() {
       setLoggedIn({
         username: profile.username ?? email.value,
         email: profile.email != null && profile.email !== '' ? String(profile.email) : '',
+        role: profile.role != null ? String(profile.role) : '',
+        password: password.value,
       })
-      router.push({ name: 'home' })
+      const redir = route.query.redirect
+      if (typeof redir === 'string' && redir.startsWith('/') && !redir.startsWith('//')) {
+        router.push(redir)
+      } else {
+        router.push({ name: 'home' })
+      }
       return
     }
     const text = await res.text()
     message.value = formatErrorBody(res.status, text)
   } catch {
     message.value =
-      '无法连接服务器。请确认：1) 后端已在 8080 启动；2) 使用 npm run dev（或 npm run preview）以便将 /api 代理到后端。'
+      'Cannot reach the server. Check that the backend is on port 8080 and that you run npm run dev (or npm run preview) so /api is proxied.'
   }
 }
 

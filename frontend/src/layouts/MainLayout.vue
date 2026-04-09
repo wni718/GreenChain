@@ -38,17 +38,26 @@ const showAppMenu = computed(() => Boolean(route.meta.showAppMenu))
   min-height: 0;
 }
 
+.body:not(.body--with-menu) {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .body--with-menu {
   flex-direction: row;
   align-items: stretch;
+  overflow: hidden;
 }
 
 .main-content {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: #fff;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 </style>

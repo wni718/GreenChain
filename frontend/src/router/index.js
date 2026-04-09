@@ -3,6 +3,11 @@ import MainLayout from '../layouts/MainLayout.vue'
 import HomeView from '../views/HomeView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import MenuPlaceholderView from '../views/MenuPlaceholderView.vue'
+import CoreIndicatorsView from '../views/CoreIndicatorsView.vue'
+import CarbonEmissionChartsView from '../views/CarbonEmissionChartsView.vue'
+import ShipmentTrackingView from '../views/ShipmentTrackingView.vue'
+import GenerateReportView from '../views/GenerateReportView.vue'
+import SupplierManagementView from '../views/SupplierManagementView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
@@ -23,13 +28,13 @@ const routes = [
   {
     path: 'core-indicators',
     name: 'core-indicators',
-    component: MenuPlaceholderView,
+    component: CoreIndicatorsView,
     meta: { ...menuMeta, menuTitle: 'Core indicators' },
   },
   {
     path: 'carbon-emission-charts',
     name: 'carbon-emission-charts',
-    component: MenuPlaceholderView,
+    component: CarbonEmissionChartsView,
     meta: { ...menuMeta, menuTitle: 'Carbon Emission Charts' },
   },
   {
@@ -41,19 +46,19 @@ const routes = [
   {
     path: 'supplier-management',
     name: 'supplier-management',
-    component: MenuPlaceholderView,
+    component: SupplierManagementView,
     meta: { ...menuMeta, menuTitle: 'Supplier Management' },
   },
   {
     path: 'shipment-tracking',
     name: 'shipment-tracking',
-    component: MenuPlaceholderView,
+    component: ShipmentTrackingView,
     meta: { ...menuMeta, menuTitle: 'Shipment Tracking' },
   },
   {
     path: 'generate-report',
     name: 'generate-report',
-    component: MenuPlaceholderView,
+    component: GenerateReportView,
     meta: { ...menuMeta, menuTitle: 'Generate Report' },
   },
   { path: 'login', name: 'login', component: LoginView, meta: { showAppMenu: false } },

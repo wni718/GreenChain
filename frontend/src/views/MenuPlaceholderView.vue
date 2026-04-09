@@ -15,10 +15,10 @@ const pageTitle = computed(() => String(route.meta.menuTitle || ''))
 
 <style scoped>
 .menu-page {
-  flex: 1;
+  flex: 0 0 auto;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  min-height: 0;
   padding: 1.25rem 1.5rem;
 }
 

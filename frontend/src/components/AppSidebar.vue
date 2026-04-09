@@ -31,12 +31,15 @@ const items = [
 .sidebar {
   width: 240px;
   flex-shrink: 0;
+  min-height: 0;
   background: #eef4ee;
   border-right: 1px solid #c5d6c5;
   padding: 1.25rem 0;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sidebar-title {

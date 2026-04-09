@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import UserAvatar from '../components/UserAvatar.vue'
@@ -7,26 +7,39 @@ import UserAvatar from '../components/UserAvatar.vue'
 const router = useRouter()
 const { currentUser, logout, setLoggedIn } = useAuth()
 
-/** 与头像直径一致，便于用户名、邮箱在头像正下方居中 */
+/** Match avatar column width so role, avatar, name, and email align */
 const avatarSizePx = 208
+
+const roleLabel = computed(() => {
+  const r = currentUser.value?.role ? String(currentUser.value.role) : ''
+  if (!r) return ''
+  if (r === 'SUSTAINABILITY_MANAGER') return 'Sustainability manager'
+  if (r === 'SUPPLIER') return 'Supplier'
+  if (r === 'VIEWER') return 'Viewer'
+  if (r === 'ADMIN') return 'Admin'
+  return r
+})
 
 function onLogout() {
   logout()
   router.push({ name: 'home' })
 }
 
-/** 旧会话或未写入邮箱时，从后端按用户名补全 */
+/** Backfill email and/or role from API when missing in session */
 onMounted(async () => {
   const u = currentUser.value
   if (!u?.username) return
-  if (u.email && String(u.email).trim() !== '') return
+  const hasEmail = u.email && String(u.email).trim() !== ''
+  const hasRole = u.role && String(u.role).trim() !== ''
+  if (hasEmail && hasRole) return
   try {
     const r = await fetch('/api/auth/account/' + encodeURIComponent(u.username))
     if (!r.ok) return
     const p = await r.json()
     setLoggedIn({
       username: p.username ?? u.username,
-      email: p.email != null && p.email !== '' ? String(p.email) : '',
+      email: hasEmail ? u.email : p.email != null && p.email !== '' ? String(p.email) : '',
+      role: hasRole ? u.role : p.role != null ? String(p.role) : '',
     })
   } catch {
     /* ignore */
@@ -35,10 +48,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="profile-page" aria-label="用户主页">
+  <main class="profile-page" aria-label="Profile">
     <section v-if="currentUser" class="profile">
       <div class="profile-head">
-        <UserAvatar :size="avatarSizePx" class="profile-avatar" />
+        <div class="profile-avatar-col" :style="{ width: avatarSizePx + 'px' }">
+          <p v-if="roleLabel" class="profile-role">{{ roleLabel }}</p>
+          <UserAvatar :size="avatarSizePx" class="profile-avatar" />
+        </div>
         <div class="profile-text" :style="{ width: avatarSizePx + 'px' }">
           <p class="profile-name">{{ currentUser.username }}</p>
           <p class="profile-email">{{ currentUser.email || '—' }}</p>
@@ -53,7 +69,8 @@ onMounted(async () => {
 
 <style scoped>
 .profile-page {
-  flex: 1;
+  flex: 0 0 auto;
+  width: 100%;
   padding: 1.5rem 1.25rem;
   background: #fff;
 }
@@ -63,6 +80,22 @@ onMounted(async () => {
   flex-direction: column;
   align-items: flex-start;
   gap: 0.65rem;
+}
+
+.profile-avatar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.profile-role {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  color: #3d5c3d;
+  text-align: center;
 }
 
 .profile-avatar {

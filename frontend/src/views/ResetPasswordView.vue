@@ -15,7 +15,7 @@ const successText = ref('')
 async function onSubmit() {
   message.value = ''
   if (newPassword.value !== confirmPassword.value) {
-    message.value = '两次输入的新密码不一致'
+    message.value = 'The two new passwords do not match.'
     return
   }
   try {
@@ -30,14 +30,14 @@ async function onSubmit() {
     })
     const text = await res.text()
     if (res.ok) {
-      successText.value = text.trim() || '密码已更新，请使用新密码登录。'
+      successText.value = text.trim() || 'Your password has been updated. Please sign in with the new password.'
       done.value = true
       return
     }
     message.value = formatErrorBody(res.status, text)
   } catch {
     message.value =
-      '无法连接服务器。请确认：1) 后端已在 8080 启动；2) 使用 npm run dev（或 npm run preview）以便将 /api 代理到后端。'
+      'Cannot reach the server. Check that the backend is on port 8080 and that you run npm run dev (or npm run preview) so /api is proxied.'
   }
 }
 

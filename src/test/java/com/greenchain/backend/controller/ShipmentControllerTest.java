@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.hamcrest.Matchers.*;
@@ -173,22 +174,22 @@ class ShipmentControllerTest {
     }
 
     @Test
-    @DisplayName("运输接口：需要认证")
-    void testShipmentEndpoint_RequiresAuth() throws Exception {
+    @DisplayName("Shipment API: list allowed without auth (open)")
+    void testShipmentEndpoint_ListOpen() throws Exception {
         mockMvc.perform(get("/api/shipments"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("运输接口：VIEWER角色不能创建")
+    @DisplayName("Shipment API: VIEWER can create while endpoints are open")
     @WithMockUser(roles = "VIEWER")
-    void testShipmentEndpoint_ViewerCannotCreate() throws Exception {
+    void testShipmentEndpoint_ViewerCanCreateWhenOpen() throws Exception {
         Shipment shipment = createTestShipment();
 
         mockMvc.perform(post("/api/shipments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(shipment)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -201,6 +202,79 @@ class ShipmentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(shipment)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("更新运输记录并重新计算碳排放（PUT）")
+    @WithMockUser(roles = "ADMIN")
+    void testUpdateShipment() throws Exception {
+        Shipment saved = shipmentRepository.save(createTestShipment());
+
+        Shipment update = new Shipment();
+        Supplier s = new Supplier();
+        s.setId(testSupplier.getId());
+        update.setSupplier(s);
+        TransportMode m = new TransportMode();
+        m.setId(truckMode.getId());
+        update.setTransportMode(m);
+        update.setOrigin("上海");
+        update.setDestination("北京");
+        update.setDistanceKm(50.0);
+        update.setCargoWeightTons(10.0);
+        update.setShipmentDate(LocalDate.now());
+
+        mockMvc.perform(put("/api/shipments/" + saved.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.calculatedCarbonEmission").value(100.0));
+    }
+
+    @Test
+    @DisplayName("更新运输记录（POST /update，与 PUT 等价）")
+    @WithMockUser(roles = "ADMIN")
+    void testUpdateShipment_PostAlias() throws Exception {
+        Shipment saved = shipmentRepository.save(createTestShipment());
+
+        Shipment update = new Shipment();
+        Supplier s = new Supplier();
+        s.setId(testSupplier.getId());
+        update.setSupplier(s);
+        TransportMode m = new TransportMode();
+        m.setId(truckMode.getId());
+        update.setTransportMode(m);
+        update.setOrigin("上海");
+        update.setDestination("北京");
+        update.setDistanceKm(50.0);
+        update.setCargoWeightTons(10.0);
+        update.setShipmentDate(LocalDate.now());
+
+        mockMvc.perform(post("/api/shipments/" + saved.getId() + "/update")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.calculatedCarbonEmission").value(100.0));
+    }
+
+    @Test
+    @DisplayName("按 ID 获取单条运输记录")
+    @WithMockUser(roles = "ADMIN")
+    void testGetShipmentById() throws Exception {
+        Shipment saved = shipmentRepository.save(createTestShipment());
+        mockMvc.perform(get("/api/shipments/" + saved.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(saved.getId().intValue()))
+                .andExpect(jsonPath("$.origin").value("上海"));
+    }
+
+    @Test
+    @DisplayName("删除运输记录")
+    @WithMockUser(roles = "ADMIN")
+    void testDeleteShipment() throws Exception {
+        Shipment saved = shipmentRepository.save(createTestShipment());
+        mockMvc.perform(delete("/api/shipments/" + saved.getId()))
+                .andExpect(status().isNoContent());
+        assertFalse(shipmentRepository.existsById(saved.getId()));
     }
 
     private Shipment createTestShipment() {

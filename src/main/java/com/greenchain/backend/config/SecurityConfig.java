@@ -4,7 +4,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -39,20 +38,10 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider)
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/recommend", "/api/recommend/**").permitAll()
-                        .requestMatchers("/api/carbon/calculate", "/api/carbon/calculate/**").permitAll()
-                        // Allow pre-check/error pages to avoid browser triggering Basic Auth pop-ups
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/error", "/favicon.ico").permitAll()
-                        .requestMatchers("/test").permitAll()
-                        .requestMatchers("/api/suppliers/**").hasAnyRole("ADMIN", "SUSTAINABILITY_MANAGER")
-                        .requestMatchers("/api/shipments/**").hasAnyRole("ADMIN", "SUSTAINABILITY_MANAGER", "SUPPLIER")
-                        .requestMatchers("/api/carbon/**").hasAnyRole("ADMIN", "SUSTAINABILITY_MANAGER", "VIEWER")
-                        .anyRequest().authenticated()
+                        // Temporary: open all endpoints for integration / demo (restore role checks before production)
+                        .anyRequest().permitAll()
                 )
-                .httpBasic(httpBasic -> httpBasic.realmName("GreenChain")) // Clearly enable Basic Auth
-                .formLogin(form -> form.disable()); // Disable form login
+                .formLogin(form -> form.disable());
 
         return http.build();
     }
