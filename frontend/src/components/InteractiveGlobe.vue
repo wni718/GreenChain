@@ -13,7 +13,7 @@ const cities = [
   { city: 'Hohhot', country: 'China', continent: 'Asia', lat: 40.8426, lng: 111.7492 },
   { city: 'Shenyang', country: 'China', continent: 'Asia', lat: 41.8057, lng: 123.4315 },
   { city: 'Qingdao', country: 'China', continent: 'Asia', lat: 36.0671, lng: 120.3826 },
-  { city: 'Guangzhou', country: 'China', continent: 'Asia', lat: 23.1291, lng: 113.2644 },
+  { city: 'Guangdong (Guangzhou)', country: 'China', continent: 'Asia', lat: 23.1291, lng: 113.2644 },
   { city: 'Xishuangbanna', country: 'China', continent: 'Asia', lat: 22.0017, lng: 100.7974 },
   { city: 'Tokyo', country: 'Japan', continent: 'Asia', lat: 35.6762, lng: 139.6503 },
   { city: 'Singapore', country: 'Singapore', continent: 'Asia', lat: 1.3521, lng: 103.8198 },
