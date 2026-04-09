@@ -1,3 +1,3 @@
 package com.greenchain.backend.dto;
 
-public record AuthProfileResponse(String username, String email) {}
+public record AuthProfileResponse(String username, String email, String role) {}

@@ -12,4 +12,7 @@ public interface ShipmentRepository extends JpaRepository<Shipment, Long> {
 
     @Query("SELECT SUM(s.calculatedCarbonEmission) FROM Shipment s")
     Double sumAllCarbonEmissions();
+
+    @Query("SELECT COUNT(DISTINCT s.supplier.id) FROM Shipment s WHERE s.supplier IS NOT NULL")
+    Long countDistinctSuppliersInShipments();
 }

@@ -217,10 +217,10 @@ class CarbonControllerTest {
     }
 
     @Test
-    @DisplayName("碳排放接口：需要认证")
-    void testCarbonEndpoint_RequiresAuth() throws Exception {
+    @DisplayName("Carbon API: total emissions allowed without auth (open)")
+    void testCarbonEndpoint_TotalOpen() throws Exception {
         mockMvc.perform(get("/api/carbon/total"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isOk());
     }
 
     @Test

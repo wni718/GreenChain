@@ -25,7 +25,7 @@ public class AuthController {
         String email = loginUser.getEmail() != null ? loginUser.getEmail().trim() : "";
         String username = loginUser.getUsername() != null ? loginUser.getUsername().trim() : "";
 
-        // 优先按邮箱登录；为空时回退用户名，兼容旧前端请求
+        // Prefer email login; fall back to username for older clients
         User user = null;
         if (!email.isEmpty()) {
             user = userRepository.findByEmail(email).orElse(null);
@@ -36,7 +36,8 @@ public class AuthController {
 
         if (user != null && passwordEncoder.matches(loginUser.getPassword(), user.getPassword())) {
             String profileEmail = user.getEmail() != null ? user.getEmail() : "";
-            return ResponseEntity.ok(new AuthProfileResponse(user.getUsername(), profileEmail));
+            String role = user.getRole() != null ? user.getRole().name() : "VIEWER";
+            return ResponseEntity.ok(new AuthProfileResponse(user.getUsername(), profileEmail, role));
         }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .contentType(MediaType.TEXT_PLAIN)
@@ -46,30 +47,53 @@ public class AuthController {
     private PasswordEncoder passwordEncoder;
 
     /**
-     * 按用户名查询公开资料（仅 username/email），用于前端补全本地会话中的邮箱；演示环境接口。
+     * Public profile by username (username/email only); used by the frontend to backfill email in session.
      */
     @GetMapping(value = "/account/{username}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<AuthProfileResponse> accountByUsername(@PathVariable String username) {
         return userRepository.findByUsername(username)
                 .map(user -> {
                     String email = user.getEmail() != null ? user.getEmail() : "";
-                    return ResponseEntity.ok(new AuthProfileResponse(user.getUsername(), email));
+                    String role = user.getRole() != null ? user.getRole().name() : "VIEWER";
+                    return ResponseEntity.ok(new AuthProfileResponse(user.getUsername(), email, role));
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/register")
-    public User register(@RequestBody User user) {
+    public ResponseEntity<?> register(@RequestBody User user) {
+        String username = user.getUsername() != null ? user.getUsername().trim() : "";
+        String email = user.getEmail() != null ? user.getEmail().trim() : "";
+        String password = user.getPassword() != null ? user.getPassword() : "";
+
+        if (username.isEmpty()) {
+            return ResponseEntity.badRequest().contentType(MediaType.TEXT_PLAIN).body("Username is required.");
+        }
+        if (email.isEmpty()) {
+            return ResponseEntity.badRequest().contentType(MediaType.TEXT_PLAIN).body("Email is required.");
+        }
+        if (password.isEmpty()) {
+            return ResponseEntity.badRequest().contentType(MediaType.TEXT_PLAIN).body("Password is required.");
+        }
+        if (userRepository.existsByUsername(username)) {
+            return ResponseEntity.badRequest().contentType(MediaType.TEXT_PLAIN).body("Username already exists");
+        }
+        if (userRepository.existsByEmail(email)) {
+            return ResponseEntity.badRequest().contentType(MediaType.TEXT_PLAIN).body("Email already exists");
+        }
+
+        user.setUsername(username);
+        user.setEmail(email);
         if (user.getRole() == null) {
             user.setRole(User.Role.VIEWER);
         }
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setPassword(passwordEncoder.encode(password));
         user.setEnabled(true);
-        return userRepository.save(user);
+        return ResponseEntity.ok(userRepository.save(user));
     }
 
     /**
-     * 浏览器地址栏访问会得到 GET，本接口实际只接受 POST；避免被误判为“静态资源不存在”。
+     * GET from the address bar is rejected; this endpoint only accepts POST.
      */
     @GetMapping("/reset-password")
     public ResponseEntity<String> resetPasswordGet() {
@@ -77,7 +101,7 @@ public class AuthController {
                 .status(HttpStatus.METHOD_NOT_ALLOWED)
                 .header(HttpHeaders.ALLOW, HttpMethod.POST.name())
                 .contentType(MediaType.TEXT_PLAIN)
-                .body("此地址仅支持 POST（application/json），字段：email、newPassword、confirmPassword。请在页面表单提交，勿在地址栏打开。");
+                .body("This URL only accepts POST (application/json) with fields: email, newPassword, confirmPassword. Submit from the form, not the address bar.");
     }
 
     @PostMapping("/reset-password")
@@ -87,22 +111,22 @@ public class AuthController {
         String confirmPassword = request.confirmPassword() != null ? request.confirmPassword() : "";
 
         if (email.isEmpty() || newPassword.isEmpty() || confirmPassword.isEmpty()) {
-            return ResponseEntity.badRequest().body("请填写邮箱与新密码");
+            return ResponseEntity.badRequest().body("Please provide email and both password fields.");
         }
         if (!newPassword.equals(confirmPassword)) {
-            return ResponseEntity.badRequest().body("两次输入的新密码不一致");
+            return ResponseEntity.badRequest().body("The two new passwords do not match.");
         }
 
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("未找到该邮箱对应的用户");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No user found for that email.");
         }
         if (passwordEncoder.matches(newPassword, user.getPassword())) {
-            return ResponseEntity.badRequest().body("新密码不可以与旧密码相同");
+            return ResponseEntity.badRequest().body("The new password must be different from the old password.");
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-        return ResponseEntity.ok("密码已更新，请使用新密码登录。");
+        return ResponseEntity.ok("Password updated. Please sign in with your new password.");
     }
 }
