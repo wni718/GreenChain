@@ -8,25 +8,30 @@ const route = useRoute()
 const router = useRouter()
 const { setLoggedIn } = useAuth()
 
-const email = ref('')
+const username = ref('')
 const password = ref('')
 const message = ref('')
 
 async function onSubmit() {
   message.value = ''
   try {
+    const loginData = {
+      username: username.value,
+      password: password.value
+    }
+    // If the input contains '@', also send it as email
+    if (username.value.includes('@')) {
+      loginData.email = username.value
+    }
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: email.value,
-        password: password.value,
-      }),
+      body: JSON.stringify(loginData),
     })
     if (res.ok) {
       const profile = await res.json()
       setLoggedIn({
-        username: profile.username ?? email.value,
+        username: profile.username ?? username.value,
         email: profile.email != null && profile.email !== '' ? String(profile.email) : '',
         role: profile.role != null ? String(profile.role) : '',
         password: password.value,
@@ -61,12 +66,12 @@ function goReset() {
     <form class="auth-form-panel" @submit.prevent="onSubmit">
       <h1 class="auth-form-title">Log in</h1>
       <input
-        v-model="email"
-        type="email"
-        autocomplete="email"
+        v-model="username"
+        type="text"
+        autocomplete="username"
         class="auth-form-input"
-        placeholder="Email Address"
-        aria-label="Email Address"
+        placeholder="Username or Email"
+        aria-label="Username or Email"
       />
       <input
         v-model="password"

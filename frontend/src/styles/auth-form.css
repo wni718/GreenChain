@@ -1,7 +1,7 @@
 /* Shared: Login / Register / Reset Password */
 
 .auth-form-wrap {
-  flex: 0 0 auto;
+  flex: 1;
   width: 100%;
   display: flex;
   align-items: center;
@@ -9,6 +9,7 @@
   padding: 1.5rem;
   background: #fff;
   box-sizing: border-box;
+  min-height: 100vh;
 }
 
 .auth-form-panel {

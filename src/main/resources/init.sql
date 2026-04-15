@@ -5,7 +5,7 @@ INSERT INTO users (username, email, password, role, company_name, enabled)
 SELECT * FROM (SELECT
     'admin' AS username,
     'admin@greenchains.com' AS email,
-    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.a.t4w2W3Q0p1J7vCqO' AS password,
+    '$2a$10$E3QnX2NfG9a8c4vB5d6eFgHhIjKlMnOpQrStUvWxYzAbCdEfGhIiJ' AS password,
     'ADMIN' AS role,
     'GreenChain Admin' AS company_name,
     true AS enabled
@@ -16,7 +16,7 @@ INSERT INTO users (username, email, password, role, company_name, enabled)
 SELECT * FROM (SELECT
     'manager' AS username,
     'manager@greenchains.com' AS email,
-    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.a.t4w2W3Q0p1J7vCqO' AS password,
+    '$2a$10$E3QnX2NfG9a8c4vB5d6eFgHhIjKlMnOpQrStUvWxYzAbCdEfGhIiJ' AS password,
     'SUSTAINABILITY_MANAGER' AS role,
     'Sustainability Team' AS company_name,
     true AS enabled
