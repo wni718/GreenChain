@@ -19,7 +19,7 @@ function setMsg(text, kind = 'err') {
   messageKind.value = kind
 }
 
-async function generateChartsHtml(summary, suppliers, shipments) {
+async function generateChartsHtml(summary, suppliers, shipments, transportModes) {
   // Create a temporary container for charts
   const chartContainer = document.createElement('div')
   chartContainer.style.cssText = `
@@ -52,6 +52,9 @@ async function generateChartsHtml(summary, suppliers, shipments) {
   
   const emissionsByTransportModeChartEl = document.createElement('div')
   emissionsByTransportModeChartEl.style.cssText = `width: 700px; height: 300px;`
+
+  const transportModeFactorChartEl = document.createElement('div')
+  transportModeFactorChartEl.style.cssText = `width: 700px; height: 300px;`
 
   // Generate charts one by one
   const chartImages = []
@@ -499,6 +502,87 @@ async function generateChartsHtml(summary, suppliers, shipments) {
   emissionsByTransportModeChart.dispose()
   chartContainer.removeChild(emissionsByTransportModeChartEl)
 
+  // Transport Mode Emission Factors Chart
+  chartContainer.appendChild(transportModeFactorChartEl)
+  const transportModeFactorChart = echarts.init(transportModeFactorChartEl)
+  
+  const transportModeData = (transportModes || []).map(mode => ({
+    name: mode.displayName || mode.mode || mode.emissionFactor || 'Unknown',
+    value: mode.emissionFactorPerKmPerTon || 0
+  }))
+
+  if (transportModeData.length === 0 || transportModeData.every(d => d.value === 0)) {
+    transportModeFactorChart.setOption({
+      color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
+      title: {
+        text: 'Transport Mode Emission Factors',
+        left: 0,
+        textStyle: { fontSize: 14, color: '#3d5340' },
+      },
+      graphic: [{
+        type: 'text',
+        left: 'center',
+        top: 'center',
+        style: {
+          text: '暂无运输方式排放因子数据',
+          fontSize: 13,
+          fill: '#6b7d6b',
+          lineHeight: 20,
+        },
+      }],
+      tooltip: { show: false },
+      xAxis: { type: 'category', data: [], show: false },
+      yAxis: { type: 'value', show: false },
+      series: [],
+    })
+  } else {
+    transportModeFactorChart.setOption({
+      graphic: [],
+      color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
+      title: {
+        text: 'Transport Mode Emission Factors',
+        left: 0,
+        textStyle: { fontSize: 14, color: '#3d5340' },
+      },
+      tooltip: {
+        trigger: 'axis',
+        formatter: '{b}: {c} kg CO2e/km/ton',
+        show: true
+      },
+      grid: { left: 12, right: 20, top: 52, bottom: 36, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: transportModeData.map(d => d.name),
+        show: true,
+        axisLabel: { rotate: transportModeData.length > 4 ? 35 : 0 }
+      },
+      yAxis: {
+        type: 'value',
+        name: 'kg CO2e/km/ton',
+        show: true,
+        nameGap: 12,
+        axisLabel: { margin: 20 },
+      },
+      series: [
+        {
+          type: 'bar',
+          data: transportModeData.map(d => d.value),
+          itemStyle: {
+            borderRadius: [4, 4, 0, 0]
+          }
+        }
+      ],
+    })
+  }
+  transportModeFactorChart.resize()
+  await new Promise(resolve => setTimeout(resolve, 500))
+  chartImages.push({
+    title: 'Transport Mode Emission Factors',
+    img: transportModeFactorChart.getDataURL({ type: 'png', pixelRatio: 2 })
+  })
+  transportModeFactorChart.dispose()
+  chartContainer.removeChild(transportModeFactorChartEl)
+
   // Remove temporary container
   document.body.removeChild(chartContainer)
 
@@ -677,10 +761,11 @@ async function exportPdf() {
   loading.value = true
   message.value = ''
   try {
-    const [sumRes, supRes, shipRes] = await Promise.all([
+    const [sumRes, supRes, shipRes, modeRes] = await Promise.all([
       apiFetch('/api/dashboard/summary'),
       apiFetch('/api/suppliers'),
       apiFetch('/api/shipments'),
+      apiFetch('/api/transport-modes'),
     ])
 
     const sumText = await sumRes.text()
@@ -698,6 +783,8 @@ async function exportPdf() {
       setMsg(formatErrorBody(shipRes.status, shipText))
       return
     }
+    const modeText = await modeRes.text()
+    const transportModes = modeRes.ok && modeText ? JSON.parse(modeText) : []
 
     const summary = sumText ? JSON.parse(sumText) : {}
     const suppliers = supText ? JSON.parse(supText) : []
@@ -810,7 +897,7 @@ async function exportPdf() {
     `
 
     // Create and add charts to the report
-    const chartsHtml = await generateChartsHtml(summary, suppliers, shipments)
+    const chartsHtml = await generateChartsHtml(summary, suppliers, shipments, transportModes)
     reportContainer.innerHTML += chartsHtml
 
     // Append container to body

@@ -11,11 +11,14 @@ const isLoggedIn = computed(() => Boolean(currentUser.value?.username))
 const loading = ref(false)
 const message = ref('')
 const summary = ref(null)
+const transportModes = ref([])
 
 const lineEl = ref(null)
 const pieEl = ref(null)
+const transportModeEl = ref(null)
 let lineChart = null
 let pieChart = null
+let transportModeChart = null
 
 async function apiFetch(path, options = {}) {
   const headers = {
@@ -29,8 +32,10 @@ async function apiFetch(path, options = {}) {
 function disposeCharts() {
   lineChart?.dispose()
   pieChart?.dispose()
+  transportModeChart?.dispose()
   lineChart = null
   pieChart = null
+  transportModeChart = null
 }
 
 const emptyLineGraphic = {
@@ -58,9 +63,21 @@ const emptyPieGraphic = {
   },
 }
 
+const emptyTransportModeGraphic = {
+  type: 'text',
+  left: 'center',
+  top: 'center',
+  style: {
+    text: '暂无运输方式数据。系统将自动加载所有运输方式的碳排放因子对比。',
+    fontSize: 13,
+    fill: '#6b7d6b',
+    lineHeight: 20,
+  },
+}
+
 function applyChartOptions() {
   const s = summary.value
-  if (!s || !lineEl.value || !pieEl.value) return
+  if (!s || !lineEl.value || !pieEl.value || !transportModeEl.value) return
 
   // Sort emissions by date in ascending order (oldest to newest)
   const sortedEmissions = [...(s.emissionsByShipmentDate || [])].sort((a, b) => {
@@ -173,11 +190,82 @@ function applyChartOptions() {
 
   lineChart.resize()
   pieChart.resize()
+  
+  // Transport mode emission factor comparison chart
+  if (!transportModeChart) transportModeChart = echarts.init(transportModeEl.value)
+  
+  if (transportModes.value.length === 0) {
+    transportModeChart.setOption(
+      {
+        color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
+        title: {
+          text: 'Transport Mode Emission Factors',
+          left: 0,
+          textStyle: { fontSize: 14, color: '#3d5340' },
+        },
+        graphic: [emptyTransportModeGraphic],
+        tooltip: { show: false },
+        xAxis: { type: 'category', data: [], show: false },
+        yAxis: { type: 'value', show: false },
+        series: [],
+      },
+      { notMerge: true },
+    )
+  } else {
+    const transportModeData = transportModes.value.map(mode => ({
+      name: mode.displayName || mode.mode,
+      value: mode.emissionFactorPerKmPerTon || 0
+    }))
+    
+    transportModeChart.setOption(
+      {
+        graphic: [],
+        color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
+        title: {
+          text: 'Transport Mode Emission Factors',
+          left: 0,
+          textStyle: { fontSize: 14, color: '#3d5340' },
+        },
+        tooltip: {
+          trigger: 'axis',
+          formatter: '{b}: {c} kg CO2e/km/ton',
+          show: true
+        },
+        grid: { left: 12, right: 20, top: 52, bottom: 36, containLabel: true },
+        xAxis: {
+          type: 'category',
+          data: transportModeData.map(d => d.name),
+          show: true,
+          axisLabel: { rotate: transportModeData.length > 4 ? 35 : 0 }
+        },
+        yAxis: {
+          type: 'value',
+          name: 'kg CO2e/km/ton',
+          show: true,
+          nameGap: 12,
+          axisLabel: { margin: 20 }
+        },
+        series: [
+          {
+            type: 'bar',
+            data: transportModeData.map(d => d.value),
+            itemStyle: {
+              borderRadius: [4, 4, 0, 0]
+            }
+          }
+        ],
+      },
+      { notMerge: true },
+    )
+  }
+  
+  transportModeChart.resize()
 }
 
 function onResize() {
   lineChart?.resize()
   pieChart?.resize()
+  transportModeChart?.resize()
 }
 
 async function loadSummary() {
@@ -185,21 +273,41 @@ async function loadSummary() {
   loading.value = true
   message.value = ''
   try {
-    const res = await apiFetch('/api/dashboard/summary')
-    const text = await res.text()
-    if (!res.ok) {
-      message.value = formatErrorBody(res.status, text)
+    // Fetch dashboard summary and transport modes in parallel
+    const [summaryRes, transportModesRes] = await Promise.all([
+      apiFetch('/api/dashboard/summary'),
+      apiFetch('/api/transport-modes')
+    ])
+    
+    // Process summary response
+    const summaryText = await summaryRes.text()
+    if (!summaryRes.ok) {
+      message.value = formatErrorBody(summaryRes.status, summaryText)
       summary.value = null
       disposeCharts()
       return
     }
-    summary.value = text ? JSON.parse(text) : null
+    summary.value = summaryText ? JSON.parse(summaryText) : null
+    
+    // Process transport modes response
+    const transportModesText = await transportModesRes.text()
+    if (transportModesRes.ok) {
+      try {
+        transportModes.value = transportModesText ? JSON.parse(transportModesText) : []
+      } catch {
+        transportModes.value = []
+      }
+    } else {
+      transportModes.value = []
+    }
+    
     await nextTick()
     await nextTick()
     applyChartOptions()
   } catch {
     message.value = 'Cannot reach the server. Check backend and Vite proxy for /api.'
     summary.value = null
+    transportModes.value = []
     disposeCharts()
   } finally {
     loading.value = false
@@ -256,6 +364,7 @@ onBeforeUnmount(() => {
       <div class="charts">
         <div ref="lineEl" class="chart" aria-label="Line chart of emissions by date" />
         <div ref="pieEl" class="chart" aria-label="Pie chart of emissions by mode" />
+        <div ref="transportModeEl" class="chart" aria-label="Bar chart of transport mode emission factors" />
       </div>
     </template>
   </div>
