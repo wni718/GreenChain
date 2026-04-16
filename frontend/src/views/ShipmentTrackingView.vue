@@ -26,6 +26,10 @@ const form = ref({
   shipmentDate: '',
 })
 
+const showRecommendation = ref(false)
+const recommendation = ref(null)
+const recommendationLoading = ref(false)
+
 function setMsg(text, kind = 'err') {
   message.value = text
   messageKind.value = kind
@@ -168,6 +172,49 @@ function openEdit(row) {
 function closeDialog() {
   dialogOpen.value = false
   editingId.value = null
+  showRecommendation.value = false
+  recommendation.value = null
+}
+
+async function getRecommendation() {
+  const mid = form.value.transportModeId.trim()
+  if (!mid) {
+    setMsg('Please select the current transport mode first.')
+    return
+  }
+  
+  // Find the corresponding transport mode object and get its mode property
+  const selectedMode = transportModes.value.find(m => String(m.id) === mid)
+  if (!selectedMode || !selectedMode.mode) {
+    setMsg('Unable to get current transport mode information.')
+    return
+  }
+  
+  recommendationLoading.value = true
+  showRecommendation.value = false
+  recommendation.value = null
+  message.value = ''
+  
+  try {
+    const res = await apiFetch(`/api/recommend?current_mode=${encodeURIComponent(selectedMode.mode)}`)
+    const text = await res.text()
+    
+    if (!res.ok) {
+      setMsg(formatErrorBody(res.status, text))
+      return
+    }
+    
+    try {
+      recommendation.value = JSON.parse(text)
+      showRecommendation.value = true
+    } catch {
+      setMsg('Failed to parse recommendation result.')
+    }
+  } catch {
+    setMsg('Cannot connect to the server. Please check if the backend is running.')
+  } finally {
+    recommendationLoading.value = false
+  }
 }
 
 async function saveShipment() {
@@ -177,17 +224,17 @@ async function saveShipment() {
   const wt = form.value.cargoWeightTons.trim()
 
   if (!sid || !mid) {
-    setMsg('请选择供应商和运输方式。')
+    setMsg('Please select a supplier and transport mode.')
     return
   }
   const distanceKm = Number(dist)
   const cargoWeightTons = Number(wt)
   if (!Number.isFinite(distanceKm) || distanceKm < 0) {
-    setMsg('请输入有效的距离（公里）。')
+    setMsg('Please enter a valid distance (km).')
     return
   }
   if (!Number.isFinite(cargoWeightTons) || cargoWeightTons < 0) {
-    setMsg('请输入有效的货重（吨）。')
+    setMsg('Please enter a valid cargo weight (tons).')
     return
   }
 
@@ -226,7 +273,7 @@ async function saveShipment() {
       setMsg(formatErrorBody(res.status, text))
       return
     }
-    setMsg(isEdit ? '修改已保存。' : '货运已保存。', 'ok')
+    setMsg(isEdit ? 'Changes saved.' : 'Shipment saved.', 'ok')
     closeDialog()
     await loadShipments()
   } catch {
@@ -252,7 +299,7 @@ async function removeRow(row) {
       setMsg(formatErrorBody(res.status, text))
       return
     }
-    setMsg('已删除。', 'ok')
+    setMsg('Deleted.', 'ok')
     await loadShipments()
   } catch {
     setMsg('Delete failed.')
@@ -328,7 +375,7 @@ watch(
           <tbody>
             <tr v-if="!loading && shipments.length === 0">
               <td colspan="10" class="empty-cell">
-                暂无货运。请先添加供应商，再点击「New shipment」新建。
+                No shipments yet. Please add suppliers first, then click "New shipment" to create one.
               </td>
             </tr>
             <tr v-for="row in shipments" :key="row.id">
@@ -369,12 +416,33 @@ watch(
             </label>
             <label class="field">
               <span class="field__label">Transport mode *</span>
-              <select v-model="form.transportModeId" class="field__input" required>
-                <option disabled value="">Select mode</option>
-                <option v-for="m in transportModes" :key="m.id" :value="String(m.id)">
-                  {{ m.displayName || m.mode || `ID ${m.id}` }}
-                </option>
-              </select>
+              <div style="display: flex; gap: 0.5rem;">
+                <select v-model="form.transportModeId" class="field__input" required style="flex: 1;">
+                  <option disabled value="">Select mode</option>
+                  <option v-for="m in transportModes" :key="m.id" :value="String(m.id)">
+                    {{ m.displayName || m.mode || `ID ${m.id}` }}
+                  </option>
+                </select>
+                <button 
+                  type="button" 
+                  class="btn btn--ghost" 
+                  @click="getRecommendation"
+                  :disabled="!form.transportModeId || recommendationLoading"
+                  style="white-space: nowrap;"
+                >
+                  {{ recommendationLoading ? 'Recommending...' : 'Recommend' }}
+                </button>
+              </div>
+              <!-- Recommendation result display -->
+              <div v-if="showRecommendation && recommendation" style="margin-top: 0.5rem; padding: 0.75rem; background: #f0f8f0; border-radius: 6px; border: 1px solid #d0e8d0;">
+                <h4 style="margin: 0 0 0.5rem; color: #3d5340; font-size: 0.9rem;">Recommendation Result</h4>
+                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                  <strong>Recommended transport mode:</strong> {{ recommendation.best_mode || 'No recommendation' }}
+                </p>
+                <p style="margin: 0; font-size: 0.85rem;">
+                  <strong>Estimated carbon reduction:</strong> {{ recommendation.saving || '0%' }}
+                </p>
+              </div>
             </label>
             <label class="field">
               <span class="field__label">Origin</span>
