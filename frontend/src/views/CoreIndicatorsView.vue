@@ -390,10 +390,10 @@ onMounted(() => {
             <div class="chart-card">
               <div ref="supplierChart" class="chart-container"></div>
             </div>
-            <div class="chart-card chart-card--wide">
+            <div class="chart-card">
               <div ref="shipmentChart" class="chart-container"></div>
             </div>
-            <div class="chart-card chart-card--wide">
+            <div class="chart-card">
               <div ref="trendChart" class="chart-container"></div>
             </div>
           </div>
@@ -552,8 +552,10 @@ onMounted(() => {
 
 .charts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .chart-card {
@@ -584,6 +586,12 @@ onMounted(() => {
   
   .chart-container {
     height: 250px;
+  }
+}
+
+@media (max-width: 992px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

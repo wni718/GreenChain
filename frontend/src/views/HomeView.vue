@@ -1,4 +1,11 @@
 <script setup>
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+function navigateTo(routeName) {
+  router.push({ name: routeName })
+}
 </script>
 
 <template>
@@ -10,19 +17,19 @@
         businesses track, analyze, and optimize their environmental impact.
       </p>
       <div class="home-features">
-        <div class="feature-card">
+        <div class="feature-card" @click="navigateTo('core-indicators')">
           <h2>Core Indicators</h2>
           <p>Monitor key sustainability metrics and carbon emissions data</p>
         </div>
-        <div class="feature-card">
+        <div class="feature-card" @click="navigateTo('carbon-emission-charts')">
           <h2>Carbon Emission Charts</h2>
           <p>Visualize emissions trends and transportation mode distribution</p>
         </div>
-        <div class="feature-card">
+        <div class="feature-card" @click="navigateTo('supplier-chain-map')">
           <h2>Supplier Chain Map</h2>
           <p>Interactive global map of suppliers and shipment routes</p>
         </div>
-        <div class="feature-card">
+        <div class="feature-card" @click="navigateTo('shipment-tracking')">
           <h2>Shipment Tracking</h2>
           <p>Track and manage your supply chain shipments</p>
         </div>
@@ -77,6 +84,7 @@
   border-radius: 10px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease;
+  cursor: pointer;
 }
 
 .feature-card:hover {

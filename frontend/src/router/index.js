@@ -21,7 +21,7 @@ function isLoggedIn() {
   }
 }
 
-const menuMeta = { showAppMenu: true }
+const menuMeta = { showAppMenu: false }
 
 const routes = [
   { path: '', name: 'home', component: HomeView, meta: { ...menuMeta } },
