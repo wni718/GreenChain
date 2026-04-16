@@ -196,7 +196,16 @@ async function getRecommendation() {
   message.value = ''
   
   try {
-    const res = await apiFetch(`/api/recommend?current_mode=${encodeURIComponent(selectedMode.mode)}`)
+    // Get distance and weight from form
+    const distance = form.value.distanceKm.trim()
+    const weight = form.value.cargoWeightTons.trim()
+    
+    // Build URL with parameters
+    let url = `/api/recommend?current_mode=${encodeURIComponent(selectedMode.mode)}`
+    if (distance) url += `&distance_km=${encodeURIComponent(distance)}`
+    if (weight) url += `&cargo_weight_tons=${encodeURIComponent(weight)}`
+    
+    const res = await apiFetch(url)
     const text = await res.text()
     
     if (!res.ok) {
@@ -439,9 +448,26 @@ watch(
                 <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
                   <strong>Recommended transport mode:</strong> {{ recommendation.best_mode || 'No recommendation' }}
                 </p>
-                <p style="margin: 0; font-size: 0.85rem;">
+                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
                   <strong>Estimated carbon reduction:</strong> {{ recommendation.saving || '0%' }}
                 </p>
+                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                  <strong>Reduction amount:</strong> {{ recommendation.saving_amount ? recommendation.saving_amount.toFixed(2) : '0' }} {{ recommendation.saving_amount_unit || 'kg CO2e' }}
+                </p>
+                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                  <strong>Current emission:</strong> {{ recommendation.current_emission ? recommendation.current_emission.toFixed(2) : '0' }} kg CO2e
+                </p>
+                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                  <strong>Recommended emission:</strong> {{ recommendation.recommended_emission ? recommendation.recommended_emission.toFixed(2) : '0' }} kg CO2e
+                </p>
+                <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #d0e8d0;">
+                  <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                    <strong>Time factor:</strong> {{ recommendation.time_factor ? (recommendation.time_factor < 1 ? 'Faster' : recommendation.time_factor > 1 ? 'Slower' : 'Same') : 'N/A' }}
+                  </p>
+                  <p style="margin: 0; font-size: 0.85rem;">
+                    <strong>Cost factor:</strong> {{ recommendation.cost_factor ? (recommendation.cost_factor < 1 ? 'Cheaper' : recommendation.cost_factor > 1 ? 'More expensive' : 'Same') : 'N/A' }}
+                  </p>
+                </div>
               </div>
             </label>
             <label class="field">
@@ -644,11 +670,13 @@ watch(
 .dialog {
   width: 100%;
   max-width: 420px;
+  max-height: 85vh;
   background: #fff;
   border-radius: 10px;
   padding: 1.25rem 1.35rem;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
   border: 1px solid #c5d6c5;
+  overflow-y: auto;
 }
 
 .dialog__title {

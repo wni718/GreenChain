@@ -16,8 +16,10 @@ public class RecommendController {
     }
 
     @GetMapping("/api/recommend")
-    public RecommendResponse recommend(@RequestParam("current_mode") String currentMode) {
-        return carbonLogicService.recommendBestMode(currentMode);
+    public RecommendResponse recommend(
+            @RequestParam("current_mode") String currentMode,
+            @RequestParam(value = "distance_km", required = false) Double distanceKm,
+            @RequestParam(value = "cargo_weight_tons", required = false) Double cargoWeightTons) {
+        return carbonLogicService.recommendBestMode(currentMode, distanceKm, cargoWeightTons);
     }
 }
-
