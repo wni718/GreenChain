@@ -8,6 +8,7 @@ import CarbonEmissionChartsView from '../views/CarbonEmissionChartsView.vue'
 import ShipmentTrackingView from '../views/ShipmentTrackingView.vue'
 import GenerateReportView from '../views/GenerateReportView.vue'
 import SupplierManagementView from '../views/SupplierManagementView.vue'
+import SupplierChainMapView from '../views/SupplierChainMapView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
@@ -40,7 +41,7 @@ const routes = [
   {
     path: 'supplier-chain-map',
     name: 'supplier-chain-map',
-    component: MenuPlaceholderView,
+    component: SupplierChainMapView,
     meta: { ...menuMeta, menuTitle: 'Supplier Chain Map' },
   },
   {
