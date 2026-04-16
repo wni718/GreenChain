@@ -42,6 +42,9 @@ public class GeoLocationService {
         LOCATION_MAP.put("Birmingham, UK", new double[]{52.4862, -1.8904});
         LOCATION_MAP.put("Edinburgh, UK", new double[]{55.9533, -3.1883});
         
+        LOCATION_MAP.put("Dublin, Ireland", new double[]{53.3498, -6.2603});
+        LOCATION_MAP.put("Cork, Ireland", new double[]{51.8985, -8.4756});
+        
         LOCATION_MAP.put("Paris, France", new double[]{48.8566, 2.3522});
         LOCATION_MAP.put("Lyon, France", new double[]{45.7640, 4.8357});
         LOCATION_MAP.put("Marseille, France", new double[]{43.2965, 5.3698});
