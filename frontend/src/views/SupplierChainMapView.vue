@@ -20,13 +20,13 @@ const suppliers = [
 
 // Sample shipment routes between suppliers
 const routes = [
-  { startLat: 31.2304, startLng: 121.4737, endLat: 37.7749, endLng: -122.4194, weight: 5000, emissions: 1200 },
-  { startLat: 37.7749, startLng: -122.4194, endLat: 52.52, endLng: 13.405, weight: 3000, emissions: 800 },
-  { startLat: 52.52, startLng: 13.405, endLat: 48.8566, endLng: 2.3522, weight: 2000, emissions: 300 },
-  { startLat: -33.8688, startLng: 151.2093, endLat: -23.5558, endLng: -46.6396, weight: 4000, emissions: 600 },
-  { startLat: 28.6139, startLng: 77.209, endLat: 31.2304, endLng: 121.4737, weight: 6000, emissions: 1500 },
-  { startLat: 55.7558, startLng: 12.4913, endLat: 52.52, endLng: 13.405, weight: 1500, emissions: 200 },
-  { startLat: -23.5558, startLng: -46.6396, endLat: 37.7749, endLng: -122.4194, weight: 3500, emissions: 1000 }
+  { startLat: 31.2304, startLng: 121.4737, endLat: 37.7749, endLng: -122.4194, weight: 5000, emissions: 1200, mode: 'Air' },
+  { startLat: 37.7749, startLng: -122.4194, endLat: 52.52, endLng: 13.405, weight: 3000, emissions: 800, mode: 'Sea' },
+  { startLat: 52.52, startLng: 13.405, endLat: 48.8566, endLng: 2.3522, weight: 2000, emissions: 300, mode: 'Rail' },
+  { startLat: -33.8688, startLng: 151.2093, endLat: -23.5558, endLng: -46.6396, weight: 4000, emissions: 600, mode: 'Truck' },
+  { startLat: 28.6139, startLng: 77.209, endLat: 31.2304, endLng: 121.4737, weight: 6000, emissions: 1500, mode: 'Air' },
+  { startLat: 55.7558, startLng: 12.4913, endLat: 52.52, endLng: 13.405, weight: 1500, emissions: 200, mode: 'Truck' },
+  { startLat: -23.5558, startLng: -46.6396, endLat: 37.7749, endLng: -122.4194, weight: 3500, emissions: 1000, mode: 'Sea' }
 ]
 
 const GEOJSON_URL = 'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson'
@@ -52,7 +52,78 @@ function initGlobe() {
         `<div style="padding:4px 6px;"><b>${d.name}</b><br/>${d.city}, ${d.country}<br/><span style="opacity:.85;">${d.industry}</span></div>`
     )
     .onPointClick((d) => {
-      console.log('Clicked supplier:', d)
+      // Find routes related to this supplier
+      const supplierRoutes = routes.filter(route => {
+        return (route.startLat === d.lat && route.startLng === d.lng) || 
+               (route.endLat === d.lat && route.endLng === d.lng)
+      })
+      
+      // Create popup content
+      let popupContent = `<div style="padding:10px; max-width: 300px;">
+        <h3 style="margin-top: 0; color: #3d5340;">${d.name}</h3>
+        <p><strong>Location:</strong> ${d.city}, ${d.country}</p>
+        <p><strong>Industry:</strong> ${d.industry}</p>
+        <h4 style="margin-top: 10px; margin-bottom: 5px; color: #3d5340;">Shipment Routes</h4>
+        <ul style="margin: 0; padding-left: 20px;">
+      `
+      
+      if (supplierRoutes.length > 0) {
+        supplierRoutes.forEach(route => {
+          // Determine if this is an origin or destination
+          const isOrigin = route.startLat === d.lat && route.startLng === d.lng
+          const otherLat = isOrigin ? route.endLat : route.startLat
+          const otherLng = isOrigin ? route.endLng : route.startLng
+          
+          // Find the other supplier
+          const otherSupplier = suppliers.find(s => s.lat === otherLat && s.lng === otherLng)
+          const otherLocation = otherSupplier ? `${otherSupplier.name}, ${otherSupplier.city}, ${otherSupplier.country}` : 'Unknown Location'
+          
+          popupContent += `<li>${isOrigin ? 'To' : 'From'}: ${otherLocation}<br/>
+            Mode: ${route.mode}<br/>
+            Weight: ${route.weight} kg<br/>
+            Emissions: ${route.emissions} kg CO2e</li>`
+        })
+      } else {
+        popupContent += '<li>No shipment routes found</li>'
+      }
+      
+      popupContent += `</ul></div>`
+      
+      // Create and show popup
+      const popup = document.createElement('div')
+      popup.innerHTML = popupContent
+      popup.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 10000;
+        max-width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+      `
+      
+      // Add close button
+      const closeButton = document.createElement('button')
+      closeButton.textContent = 'Close'
+      closeButton.style.cssText = `
+        margin-top: 10px;
+        padding: 5px 10px;
+        background: #3d5340;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      `
+      closeButton.onclick = () => {
+        document.body.removeChild(popup)
+      }
+      
+      popup.appendChild(closeButton)
+      document.body.appendChild(popup)
     })
 
   // Add arcs for shipment routes
@@ -63,7 +134,7 @@ function initGlobe() {
     .arcStroke((d) => d.weight / 2000)
     .arcLabel(
       (d) =>
-        `<div style="padding:4px 6px;">${d.weight} kg<br/>${d.emissions} kg CO2e</div>`
+        `<div style="padding:4px 6px;">${d.weight} kg<br/>${d.emissions} kg CO2e<br/>Mode: ${d.mode}</div>`
     )
     .arcStartLat('startLat')
     .arcStartLng('startLng')

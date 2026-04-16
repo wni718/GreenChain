@@ -2,6 +2,9 @@
 import { ref, computed, watch } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { formatErrorBody } from '../utils/apiError'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
+import * as echarts from 'echarts'
 
 const { apiAuthHeader, currentUser } = useAuth()
 
@@ -14,6 +17,425 @@ const messageKind = ref('err')
 function setMsg(text, kind = 'err') {
   message.value = text
   messageKind.value = kind
+}
+
+async function generateChartsHtml(summary, suppliers, shipments) {
+  // Create a temporary container for charts
+  const chartContainer = document.createElement('div')
+  chartContainer.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 700px;
+    height: 300px;
+    z-index: 9999;
+    background: white;
+    opacity: 0.01;
+  `
+  document.body.appendChild(chartContainer)
+
+  // Create chart elements
+  const emissionsChartEl = document.createElement('div')
+  emissionsChartEl.style.cssText = `width: 700px; height: 300px;`
+  
+  const supplierChartEl = document.createElement('div')
+  supplierChartEl.style.cssText = `width: 700px; height: 300px;`
+  
+  const shipmentChartEl = document.createElement('div')
+  shipmentChartEl.style.cssText = `width: 700px; height: 300px;`
+  
+  const trendChartEl = document.createElement('div')
+  trendChartEl.style.cssText = `width: 700px; height: 300px;`
+  
+  const emissionsByDateChartEl = document.createElement('div')
+  emissionsByDateChartEl.style.cssText = `width: 700px; height: 300px;`
+  
+  const emissionsByTransportModeChartEl = document.createElement('div')
+  emissionsByTransportModeChartEl.style.cssText = `width: 700px; height: 300px;`
+
+  // Generate charts one by one
+  const chartImages = []
+
+  // Carbon Emissions Chart
+  chartContainer.appendChild(emissionsChartEl)
+  const emissionsChart = echarts.init(emissionsChartEl)
+  emissionsChart.setOption({
+    title: {
+      text: 'Carbon Emissions',
+      left: 'center'
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow'
+      }
+    },
+    legend: {
+      data: ['Total Emissions', 'Avoided Emissions'],
+      bottom: 10
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '15%',
+      top: '15%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: ['Emissions (kg CO2e)']
+    },
+    yAxis: {
+      type: 'value'
+    },
+    series: [
+      {
+        name: 'Total Emissions',
+        type: 'bar',
+        data: [Number(summary.totalEmissionsKg || 0)],
+        itemStyle: {
+          color: '#ff7875'
+        }
+      },
+      {
+        name: 'Avoided Emissions',
+        type: 'bar',
+        data: [Number(summary.estimatedAvoidedEmissionsKg || 0)],
+        itemStyle: {
+          color: '#73d13d'
+        }
+      }
+    ]
+  })
+  emissionsChart.resize()
+  await new Promise(resolve => setTimeout(resolve, 500))
+  chartImages.push({
+    title: 'Carbon Emissions',
+    img: emissionsChart.getDataURL({ type: 'png', pixelRatio: 2 })
+  })
+  emissionsChart.dispose()
+  chartContainer.removeChild(emissionsChartEl)
+
+  // Supplier Distribution Chart
+  chartContainer.appendChild(supplierChartEl)
+  const supplierChart = echarts.init(supplierChartEl)
+  supplierChart.setOption({
+    title: {
+      text: 'Supplier Distribution',
+      left: 'center'
+    },
+    tooltip: {
+      trigger: 'item'
+    },
+    legend: {
+      orient: 'vertical',
+      left: 'left',
+      bottom: 10
+    },
+    series: [
+      {
+        name: 'Suppliers',
+        type: 'pie',
+        radius: '60%',
+        center: ['50%', '50%'],
+        data: [
+          {
+            value: summary.certifiedSupplierCount || 0,
+            name: 'Certified'
+          },
+          {
+            value: (summary.registeredSupplierCount || 0) - (summary.certifiedSupplierCount || 0),
+            name: 'Non-Certified'
+          }
+        ],
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.5)'
+          }
+        }
+      }
+    ]
+  })
+  supplierChart.resize()
+  await new Promise(resolve => setTimeout(resolve, 500))
+  chartImages.push({
+    title: 'Supplier Distribution',
+    img: supplierChart.getDataURL({ type: 'png', pixelRatio: 2 })
+  })
+  supplierChart.dispose()
+  chartContainer.removeChild(supplierChartEl)
+
+  // Shipment & Supply Chain Chart
+  chartContainer.appendChild(shipmentChartEl)
+  const shipmentChart = echarts.init(shipmentChartEl)
+  shipmentChart.setOption({
+    title: {
+      text: 'Supply Chain Metrics',
+      left: 'center'
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow'
+      }
+    },
+    legend: {
+      data: ['Shipments', 'Enterprises'],
+      bottom: 10
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '15%',
+      top: '15%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: ['Count']
+    },
+    yAxis: {
+      type: 'value'
+    },
+    series: [
+      {
+        name: 'Shipments',
+        type: 'bar',
+        data: [summary.shipmentCount || 0],
+        itemStyle: {
+          color: '#409eff'
+        }
+      },
+      {
+        name: 'Enterprises',
+        type: 'bar',
+        data: [summary.enterprisesInSupplyChain || 0],
+        itemStyle: {
+          color: '#9254de'
+        }
+      }
+    ]
+  })
+  shipmentChart.resize()
+  await new Promise(resolve => setTimeout(resolve, 500))
+  chartImages.push({
+    title: 'Supply Chain Metrics',
+    img: shipmentChart.getDataURL({ type: 'png', pixelRatio: 2 })
+  })
+  shipmentChart.dispose()
+  chartContainer.removeChild(shipmentChartEl)
+
+  // Carbon Emissions Trend Chart
+  chartContainer.appendChild(trendChartEl)
+  const trendChart = echarts.init(trendChartEl)
+  trendChart.setOption({
+    title: {
+      text: 'Carbon Emissions Trend',
+      left: 'center'
+    },
+    tooltip: {
+      trigger: 'axis'
+    },
+    legend: {
+      data: ['Monthly Emissions'],
+      bottom: 10
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '15%',
+      top: '15%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    },
+    yAxis: {
+      type: 'value',
+      name: 'kg CO2e'
+    },
+    series: [
+      {
+        name: 'Monthly Emissions',
+        type: 'line',
+        stack: 'Total',
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(255, 120, 117, 0.5)' },
+            { offset: 1, color: 'rgba(255, 120, 117, 0.1)' }
+          ])
+        },
+        data: [2800, 3200, 2900, 3500, 4200, 3800, 4500, 4100, 3900, 3600, 3300, 3000],
+        lineStyle: {
+          color: '#ff7875'
+        },
+        itemStyle: {
+          color: '#ff7875'
+        }
+      }
+    ]
+  })
+  trendChart.resize()
+  await new Promise(resolve => setTimeout(resolve, 500))
+  chartImages.push({
+    title: 'Carbon Emissions Trend',
+    img: trendChart.getDataURL({ type: 'png', pixelRatio: 2 })
+  })
+  trendChart.dispose()
+  chartContainer.removeChild(trendChartEl)
+
+  // Emissions by Shipment Date Chart
+  chartContainer.appendChild(emissionsByDateChartEl)
+  const emissionsByDateChart = echarts.init(emissionsByDateChartEl)
+  const dates = (summary.emissionsByShipmentDate || []).map((r) => r.date)
+  const seriesLine = (summary.emissionsByShipmentDate || []).map((r) => r.emissionsKg)
+
+  if (dates.length === 0) {
+    emissionsByDateChart.setOption({
+      color: ['#528951'],
+      title: {
+        text: 'Emissions by shipment date',
+        left: 0,
+        textStyle: { fontSize: 14, color: '#3d5340' },
+      },
+      graphic: [{
+        type: 'text',
+        left: 'center',
+        top: 'center',
+        style: {
+          text: '暂无按日数据',
+          fontSize: 13,
+          fill: '#6b7d6b',
+          lineHeight: 20,
+        },
+      }],
+      tooltip: { show: false },
+      grid: { left: 12, right: 20, top: 52, bottom: 36, containLabel: true },
+      xAxis: { type: 'category', data: [], show: false },
+      yAxis: { type: 'value', show: false },
+      series: [],
+    })
+  } else {
+    emissionsByDateChart.setOption({
+      graphic: [],
+      color: ['#528951'],
+      title: {
+        text: 'Emissions by shipment date',
+        left: 0,
+        textStyle: { fontSize: 14, color: '#3d5340' },
+      },
+      tooltip: { trigger: 'axis', show: true },
+      grid: { left: 12, right: 20, top: 52, bottom: 36, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        show: true,
+        axisLabel: { rotate: dates.length > 8 ? 35 : 0 },
+      },
+      yAxis: {
+        type: 'value',
+        name: 'kg CO2e',
+        show: true,
+        nameGap: 12,
+        axisLabel: { margin: 8 },
+      },
+      series: [
+        { type: 'line', smooth: true, data: seriesLine, areaStyle: { opacity: 0.12 } },
+      ],
+    })
+  }
+  emissionsByDateChart.resize()
+  await new Promise(resolve => setTimeout(resolve, 500))
+  chartImages.push({
+    title: 'Emissions by Shipment Date',
+    img: emissionsByDateChart.getDataURL({ type: 'png', pixelRatio: 2 })
+  })
+  emissionsByDateChart.dispose()
+  chartContainer.removeChild(emissionsByDateChartEl)
+
+  // Emissions by Transport Mode Chart
+  chartContainer.appendChild(emissionsByTransportModeChartEl)
+  const emissionsByTransportModeChart = echarts.init(emissionsByTransportModeChartEl)
+  const pieDataRaw = (summary.emissionsByTransportMode || []).map((r) => ({
+    name: r.transportMode,
+    value: Number(r.emissionsKg) || 0,
+  }))
+  const pieData = pieDataRaw.filter((d) => d.value > 0)
+
+  if (pieData.length === 0) {
+    emissionsByTransportModeChart.setOption({
+      color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
+      title: {
+        text: 'Share by transport mode',
+        left: 0,
+        textStyle: { fontSize: 14, color: '#3d5340' },
+      },
+      graphic: [{
+        type: 'text',
+        left: 'center',
+        top: 'center',
+        style: {
+          text: '暂无运输方式分布',
+          fontSize: 13,
+          fill: '#6b7d6b',
+          lineHeight: 20,
+        },
+      }],
+      tooltip: { show: false },
+      series: [{ type: 'pie', radius: ['36%', '62%'], data: [] }],
+    })
+  } else {
+    emissionsByTransportModeChart.setOption({
+      graphic: [],
+      color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
+      title: {
+        text: 'Share by transport mode',
+        left: 0,
+        textStyle: { fontSize: 14, color: '#3d5340' },
+      },
+      tooltip: { trigger: 'item', formatter: '{b}: {c} kg ({d}%)', show: true },
+      series: [
+        {
+          type: 'pie',
+          radius: ['36%', '62%'],
+          avoidLabelOverlap: true,
+          label: { color: '#2d4a2c' },
+          data: pieData,
+        },
+      ],
+    })
+  }
+  emissionsByTransportModeChart.resize()
+  await new Promise(resolve => setTimeout(resolve, 500))
+  chartImages.push({
+    title: 'Share by Transport Mode',
+    img: emissionsByTransportModeChart.getDataURL({ type: 'png', pixelRatio: 2 })
+  })
+  emissionsByTransportModeChart.dispose()
+  chartContainer.removeChild(emissionsByTransportModeChartEl)
+
+  // Remove temporary container
+  document.body.removeChild(chartContainer)
+
+  // Generate HTML with charts
+  let chartsHtml = `
+    <h2 style="color: #5f795f; margin-top: 40px; margin-bottom: 20px;">Charts</h2>
+  `
+
+  chartImages.forEach(chart => {
+    chartsHtml += `
+      <h3 style="color: #5f795f; margin-top: 30px; margin-bottom: 10px;">${chart.title}</h3>
+      <div style="text-align: center; margin-bottom: 30px;">
+        <img src="${chart.img}" style="max-width: 100%; height: auto;">
+      </div>
+    `
+  })
+
+  return chartsHtml
 }
 
 async function apiFetch(path, options = {}) {
@@ -141,8 +563,7 @@ async function exportCsv() {
     for (const sh of shipments) {
       const sid = sh.supplier?.id
       const sname = sh.supplier?.name
-      const mode =
-        sh.transportMode?.displayName || sh.transportMode?.mode || ''
+      const mode = sh.transportMode?.displayName || sh.transportMode?.mode || ''
       lines.push(
         [
           csvEscape(sh.id),
@@ -165,6 +586,193 @@ async function exportCsv() {
     setMsg('Report downloaded as CSV.', 'ok')
   } catch {
     setMsg('Export failed. Check network and backend.')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function exportPdf() {
+  if (!isLoggedIn.value) return
+  loading.value = true
+  message.value = ''
+  try {
+    const [sumRes, supRes, shipRes] = await Promise.all([
+      apiFetch('/api/dashboard/summary'),
+      apiFetch('/api/suppliers'),
+      apiFetch('/api/shipments'),
+    ])
+
+    const sumText = await sumRes.text()
+    if (!sumRes.ok) {
+      setMsg(formatErrorBody(sumRes.status, sumText))
+      return
+    }
+    const supText = await supRes.text()
+    if (!supRes.ok) {
+      setMsg(formatErrorBody(supRes.status, supText))
+      return
+    }
+    const shipText = await shipRes.text()
+    if (!shipRes.ok) {
+      setMsg(formatErrorBody(shipRes.status, shipText))
+      return
+    }
+
+    const summary = sumText ? JSON.parse(sumText) : {}
+    const suppliers = supText ? JSON.parse(supText) : []
+    const shipments = shipText ? JSON.parse(shipText) : []
+
+    // Create PDF report container
+    const reportContainer = document.createElement('div')
+    reportContainer.style.cssText = `
+      width: 800px;
+      padding: 40px;
+      background: white;
+      font-family: Arial, sans-serif;
+      color: #333;
+    `
+
+    // Add report header
+    reportContainer.innerHTML = `
+      <div style="text-align: center; margin-bottom: 40px;">
+        <h1 style="color: #5f795f; margin-bottom: 10px;">GreenChain Sustainability Report</h1>
+        <p style="color: #666;">Generated on ${new Date().toISOString()}</p>
+      </div>
+      
+      <h2 style="color: #5f795f; margin-top: 30px; margin-bottom: 20px;">KPI Summary</h2>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+        <tr style="background: #f8fbf8;">
+          <th style="border: 1px solid #c5d6c5; padding: 8px; text-align: left;">Metric</th>
+          <th style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">Value</th>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #c5d6c5; padding: 8px;">Total Emissions (kg CO2e)</td>
+          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${summary.totalEmissionsKg || 0}</td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #c5d6c5; padding: 8px;">Estimated Avoided Emissions (kg CO2e)</td>
+          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${summary.estimatedAvoidedEmissionsKg || 0}</td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #c5d6c5; padding: 8px;">Reduction vs Highest Factor Mode (%)</td>
+          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${summary.reductionPercentVsHighestFactorMode || 0}%</td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #c5d6c5; padding: 8px;">Shipment Count</td>
+          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${summary.shipmentCount || 0}</td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #c5d6c5; padding: 8px;">Registered Suppliers</td>
+          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${summary.registeredSupplierCount || 0}</td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #c5d6c5; padding: 8px;">Certified Suppliers</td>
+          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${summary.certifiedSupplierCount || 0}</td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #c5d6c5; padding: 8px;">Enterprises in Supply Chain</td>
+          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${summary.enterprisesInSupplyChain || 0}</td>
+        </tr>
+      </table>
+      
+      <h2 style="color: #5f795f; margin-top: 30px; margin-bottom: 20px;">Emissions by Transport Mode</h2>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+        <tr style="background: #f8fbf8;">
+          <th style="border: 1px solid #c5d6c5; padding: 8px; text-align: left;">Transport Mode</th>
+          <th style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">Emissions (kg CO2e)</th>
+        </tr>
+        ${(summary.emissionsByTransportMode || []).map(row => `
+          <tr>
+            <td style="border: 1px solid #c5d6c5; padding: 8px;">${row.transportMode}</td>
+            <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${row.emissionsKg}</td>
+          </tr>
+        `).join('')}
+      </table>
+      
+      <h2 style="color: #5f795f; margin-top: 30px; margin-bottom: 20px;">Top Suppliers</h2>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+        <tr style="background: #f8fbf8;">
+          <th style="border: 1px solid #c5d6c5; padding: 8px; text-align: left;">Supplier Name</th>
+          <th style="border: 1px solid #c5d6c5; padding: 8px; text-align: left;">Country</th>
+          <th style="border: 1px solid #c5d6c5; padding: 8px; text-align: center;">Certified</th>
+        </tr>
+        ${suppliers.slice(0, 10).map(s => `
+          <tr>
+            <td style="border: 1px solid #c5d6c5; padding: 8px;">${s.name}</td>
+            <td style="border: 1px solid #c5d6c5; padding: 8px;">${s.country}</td>
+            <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: center;">${s.hasEnvironmentalCertification ? 'Yes' : 'No'}</td>
+          </tr>
+        `).join('')}
+      </table>
+      
+      <h2 style="color: #5f795f; margin-top: 30px; margin-bottom: 20px;">Recent Shipments</h2>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+        <tr style="background: #f8fbf8;">
+          <th style="border: 1px solid #c5d6c5; padding: 8px; text-align: left;">Supplier</th>
+          <th style="border: 1px solid #c5d6c5; padding: 8px; text-align: left;">Transport Mode</th>
+          <th style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">Distance (km)</th>
+          <th style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">Emissions (kg CO2e)</th>
+        </tr>
+        ${shipments.slice(0, 10).map(sh => {
+          const sname = sh.supplier?.name || 'Unknown'
+          const mode = sh.transportMode?.displayName || sh.transportMode?.mode || 'Unknown'
+          return `
+            <tr>
+              <td style="border: 1px solid #c5d6c5; padding: 8px;">${sname}</td>
+              <td style="border: 1px solid #c5d6c5; padding: 8px;">${mode}</td>
+              <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${sh.distanceKm || 0}</td>
+              <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${sh.calculatedCarbonEmission || 0}</td>
+            </tr>
+          `
+        }).join('')}
+      </table>
+    `
+
+    // Create and add charts to the report
+    const chartsHtml = await generateChartsHtml(summary, suppliers, shipments)
+    reportContainer.innerHTML += chartsHtml
+
+    // Append container to body
+    document.body.appendChild(reportContainer)
+
+    // Convert to canvas
+    const canvas = await html2canvas(reportContainer, {
+      scale: 2,
+      useCORS: true,
+      logging: false
+    })
+
+    // Remove temporary container
+    document.body.removeChild(reportContainer)
+
+    // Create PDF
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    const imgData = canvas.toDataURL('image/png')
+    const imgWidth = 210
+    const imgHeight = canvas.height * imgWidth / canvas.width
+    
+    let heightLeft = imgHeight
+    let position = 0
+
+    // Add first page
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+    heightLeft -= 297
+
+    // Add additional pages if needed
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight
+      pdf.addPage()
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= 297
+    }
+
+    // Download PDF
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+    pdf.save(`greenchain-report-${stamp}.pdf`)
+    setMsg('Report downloaded as PDF.', 'ok')
+  } catch (error) {
+    console.error('PDF export error:', error)
+    setMsg('PDF export failed. Check network and backend.')
   } finally {
     loading.value = false
   }
@@ -199,9 +807,14 @@ watch(isLoggedIn, (loggedIn) => {
       </p>
 
       <div class="panel">
-        <button type="button" class="btn btn--primary" :disabled="loading" @click="exportCsv">
-          {{ loading ? 'Preparing…' : 'Download CSV report' }}
-        </button>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+          <button type="button" class="btn btn--primary" :disabled="loading" @click="exportCsv">
+            {{ loading ? 'Preparing…' : 'Download CSV report' }}
+          </button>
+          <button type="button" class="btn btn--primary" :disabled="loading" @click="exportPdf">
+            {{ loading ? 'Preparing…' : 'Download PDF report' }}
+          </button>
+        </div>
       </div>
     </template>
   </div>

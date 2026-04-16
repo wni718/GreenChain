@@ -11,6 +11,8 @@
   "dependencies": {
     "echarts": "^5.6.0",
     "globe.gl": "^2.45.3",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "three": "^0.183.2",
     "vue": "^3.5.30",
     "vue-router": "^4.6.4"
