@@ -60,49 +60,66 @@ async function fetchData() {
         lat: geoData.lat,
         lng: geoData.lng,
         industry: geoData.industry,
-        hasEnvironmentalCertification: supplier.hasEnvironmentalCertification
+        hasEnvironmentalCertification: supplier.hasEnvironmentalCertification,
+        type: 'supplier'
       }
     })
     
-    suppliers.value = enhancedSuppliers
-    
-    // Fetch shipments
-    const shipmentsResponse = await fetch('/api/shipments')
+    // Fetch shipments with coordinates from backend
+    const shipmentsResponse = await fetch('/api/shipments/with-coordinates')
     const shipmentsData = await shipmentsResponse.json()
     
-    // Convert shipments to routes
+    // Convert shipments to routes using actual origin/destination coordinates from backend
     const shipmentRoutes = shipmentsData.map(shipment => {
-      // Find origin and destination suppliers
-      const originSupplier = enhancedSuppliers.find(s => s.id === shipment.supplier?.id)
-      
-      // For destination, use a random supplier different from origin
-      let destinationSupplier
-      if (enhancedSuppliers.length > 1) {
-        do {
-          const randomIndex = Math.floor(Math.random() * enhancedSuppliers.length)
-          destinationSupplier = enhancedSuppliers[randomIndex]
-        } while (destinationSupplier.id === originSupplier?.id)
-      } else {
-        // If only one supplier, use a default destination
-        destinationSupplier = { lat: 0, lng: 0 } // Default to a different location
-      }
-      
-      // Get transport mode
-      const transportMode = transportModeMap[shipment.transportMode?.id] || { mode: 'Unknown' }
-      
       return {
         id: shipment.id,
-        startLat: originSupplier?.lat || 0,
-        startLng: originSupplier?.lng || 0,
-        endLat: destinationSupplier?.lat || 0,
-        endLng: destinationSupplier?.lng || 0,
+        startLat: shipment.originLat || 0,
+        startLng: shipment.originLng || 0,
+        endLat: shipment.destLat || 0,
+        endLng: shipment.destLng || 0,
+        origin: shipment.origin,
+        destination: shipment.destination,
+        supplierName: shipment.supplierName,
         weight: (shipment.cargoWeightTons || 0) * 1000, // Convert tons to kg
         emissions: shipment.calculatedCarbonEmission || 0,
-        mode: transportMode.mode
+        mode: shipment.transportModeName || shipment.transportMode || 'Unknown'
       }
     })
     
     routes.value = shipmentRoutes
+    
+    // Extract unique origins and destinations from shipments
+    const locationMap = new Map()
+    
+    // Add origins
+    shipmentsData.forEach(shipment => {
+      if (shipment.origin && shipment.originLat && shipment.originLng) {
+        locationMap.set(shipment.origin, {
+          name: shipment.origin,
+          lat: shipment.originLat,
+          lng: shipment.originLng,
+          type: 'origin',
+          id: `origin_${shipment.id}`
+        })
+      }
+    })
+    
+    // Add destinations
+    shipmentsData.forEach(shipment => {
+      if (shipment.destination && shipment.destLat && shipment.destLng) {
+        locationMap.set(shipment.destination, {
+          name: shipment.destination,
+          lat: shipment.destLat,
+          lng: shipment.destLng,
+          type: 'destination',
+          id: `dest_${shipment.id}`
+        })
+      }
+    })
+    
+    // Convert locationMap values to array and add to suppliers
+    const locationPoints = Array.from(locationMap.values())
+    suppliers.value = [...enhancedSuppliers, ...locationPoints]
     
     // Reinitialize globe with new data
     if (globeInstance) {
@@ -159,41 +176,80 @@ function initGlobe() {
     .pointColor(() => '#34c759')
     .pointsData(suppliers.value)
     .pointLabel(
-      (d) =>
-        `<div style="padding:4px 6px;"><b>${d.name}</b><br/>${d.city}, ${d.country}<br/><span style="opacity:.85;">${d.industry}</span></div>`
+      (d) => {
+        if (d.type === 'supplier') {
+          return `<div style="padding:4px 6px;"><b>${d.name}</b><br/>${d.city}, ${d.country}<br/><span style="opacity:.85;">${d.industry}</span></div>`
+        } else {
+          return `<div style="padding:4px 6px;"><b>${d.name}</b><br/>${d.type === 'origin' ? 'Origin' : 'Destination'}<br/><span style="opacity:.85;">${d.lat.toFixed(4)}, ${d.lng.toFixed(4)}</span></div>`
+        }
+      }
     )
     .onPointClick((d) => {
-      // Find routes related to this supplier
-      const supplierRoutes = routes.value.filter(route => {
-        return (route.startLat === d.lat && route.startLng === d.lng) || 
-               (route.endLat === d.lat && route.endLng === d.lng)
-      })
+      // Find routes related to this location
+      let relatedRoutes = []
+      if (d.type === 'supplier') {
+        // For suppliers, find routes by supplier name
+        relatedRoutes = routes.value.filter(route => {
+          return route.supplierName === d.name
+        })
+      } else if (d.type === 'origin') {
+        // For origins, find routes where this is the origin
+        relatedRoutes = routes.value.filter(route => {
+          return route.origin === d.name
+        })
+      } else if (d.type === 'destination') {
+        // For destinations, find routes where this is the destination
+        relatedRoutes = routes.value.filter(route => {
+          return route.destination === d.name
+        })
+      }
       
       // Create popup content
       let popupContent = `<div style="padding:10px; max-width: 300px;">
         <h3 style="margin-top: 0; color: #3d5340;">${d.name}</h3>
-        <p><strong>Location:</strong> ${d.city}, ${d.country}</p>
-        <p><strong>Industry:</strong> ${d.industry}</p>
-        <p><strong>Certified:</strong> ${d.hasEnvironmentalCertification ? 'Yes' : 'No'}</p>
+      `
+      
+      // Add location details based on type
+      if (d.type === 'supplier') {
+        popupContent += `
+          <p><strong>Location:</strong> ${d.city}, ${d.country}</p>
+          <p><strong>Industry:</strong> ${d.industry}</p>
+          <p><strong>Certified:</strong> ${d.hasEnvironmentalCertification ? 'Yes' : 'No'}</p>
+        `
+      } else {
+        popupContent += `
+          <p><strong>Type:</strong> ${d.type === 'origin' ? 'Origin' : 'Destination'}</p>
+          <p><strong>Coordinates:</strong> ${d.lat.toFixed(4)}, ${d.lng.toFixed(4)}</p>
+        `
+      }
+      
+      // Add shipment routes
+      popupContent += `
         <h4 style="margin-top: 10px; margin-bottom: 5px; color: #3d5340;">Shipment Routes</h4>
         <ul style="margin: 0; padding-left: 20px;">
       `
       
-      if (supplierRoutes.length > 0) {
-        supplierRoutes.forEach(route => {
-          // Determine if this is an origin or destination
-          const isOrigin = route.startLat === d.lat && route.startLng === d.lng
-          const otherLat = isOrigin ? route.endLat : route.startLat
-          const otherLng = isOrigin ? route.endLng : route.startLng
-          
-          // Find the other supplier
-          const otherSupplier = suppliers.value.find(s => s.lat === otherLat && s.lng === otherLng)
-          const otherLocation = otherSupplier ? `${otherSupplier.name}, ${otherSupplier.city}, ${otherSupplier.country}` : 'Unknown Location'
-          
-          popupContent += `<li>${isOrigin ? 'To' : 'From'}: ${otherLocation}<br/>
-            Mode: ${route.mode}<br/>
-            Weight: ${route.weight.toFixed(0)} kg<br/>
-            Emissions: ${route.emissions.toFixed(2)} kg CO2e</li>`
+      if (relatedRoutes.length > 0) {
+        relatedRoutes.forEach(route => {
+          if (d.type === 'origin') {
+            popupContent += `<li>To: ${route.destination || 'Unknown'}<br/>
+              Supplier: ${route.supplierName || 'Unknown'}<br/>
+              Mode: ${route.mode}<br/>
+              Weight: ${route.weight.toFixed(0)} kg<br/>
+              Emissions: ${route.emissions.toFixed(2)} kg CO2e</li>`
+          } else if (d.type === 'destination') {
+            popupContent += `<li>From: ${route.origin || 'Unknown'}<br/>
+              Supplier: ${route.supplierName || 'Unknown'}<br/>
+              Mode: ${route.mode}<br/>
+              Weight: ${route.weight.toFixed(0)} kg<br/>
+              Emissions: ${route.emissions.toFixed(2)} kg CO2e</li>`
+          } else {
+            const toLocation = route.destination || 'Unknown'
+            popupContent += `<li>To: ${toLocation}<br/>
+              Mode: ${route.mode}<br/>
+              Weight: ${route.weight.toFixed(0)} kg<br/>
+              Emissions: ${route.emissions.toFixed(2)} kg CO2e</li>`
+          }
         })
       } else {
         popupContent += '<li>No shipment routes found</li>'
@@ -246,7 +302,7 @@ function initGlobe() {
     .arcStroke((d) => Math.max((d.emissions / 90000) * (d.weight / 40000), 0.2)) // Calculate stroke width based on both emissions and weight, minimum 0.1
     .arcLabel(
       (d) =>
-        `<div style="padding:4px 6px;">${d.weight.toFixed(0)} kg<br/>${d.emissions.toFixed(2)} kg CO2e<br/>Mode: ${d.mode}</div>`
+        `<div style="padding:4px 6px;"><strong>From:</strong> ${d.origin || 'Unknown'}<br/><strong>To:</strong> ${d.destination || 'Unknown'}<br/><strong>Weight:</strong> ${d.weight.toFixed(0)} kg<br/><strong>Emissions:</strong> ${d.emissions.toFixed(2)} kg CO2e<br/><strong>Mode:</strong> ${d.mode}</div>`
     )
     .arcStartLat('startLat')
     .arcStartLng('startLng')
@@ -254,9 +310,10 @@ function initGlobe() {
     .arcEndLng('endLng')
     .arcDashLength(0) // Ensure solid lines
     .onArcClick((arc) => {
-      // Find origin and destination suppliers
-      const originSupplier = suppliers.value.find(s => s.lat === arc.startLat && s.lng === arc.startLng)
-      const destinationSupplier = suppliers.value.find(s => s.lat === arc.endLat && s.lng === arc.endLng)
+      // Get route details directly from arc data
+      const originInfo = arc.origin || 'Unknown'
+      const destInfo = arc.destination || 'Unknown'
+      const supplierInfo = arc.supplierName || 'Unknown'
       
       // Create popup for route details
       const popup = document.createElement('div')
@@ -290,10 +347,13 @@ function initGlobe() {
       popup.innerHTML = `
         <h3 style="margin-top: 0; margin-bottom: 12px;">Route Details</h3>
         <div style="margin-bottom: 8px;">
-          <strong>From:</strong> ${originSupplier?.name}, ${originSupplier?.city}, ${originSupplier?.country}
+          <strong>Supplier:</strong> ${supplierInfo}
         </div>
         <div style="margin-bottom: 8px;">
-          <strong>To:</strong> ${destinationSupplier?.name}, ${destinationSupplier?.city}, ${destinationSupplier?.country}
+          <strong>From:</strong> ${originInfo}
+        </div>
+        <div style="margin-bottom: 8px;">
+          <strong>To:</strong> ${destInfo}
         </div>
         <div style="margin-bottom: 8px;">
           <strong>Mode:</strong> ${arc.mode}
