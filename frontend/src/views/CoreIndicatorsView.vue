@@ -13,10 +13,12 @@ const message = ref('')
 const messageKind = ref('err')
 
 const summary = ref(null)
+const historyAnalysis = ref(null)
 const emissionsChart = ref(null)
 const supplierChart = ref(null)
 const shipmentChart = ref(null)
 const trendChart = ref(null)
+const historyChart = ref(null)
 
 // Get available years from data
 const availableYears = computed(() => {
@@ -325,12 +327,128 @@ async function loadSummary() {
   }
 }
 
+async function loadHistoryAnalysis() {
+  if (!isLoggedIn.value) return
+  try {
+    const res = await apiFetch('/api/recommend/history-analysis')
+    const text = await res.text()
+    if (!res.ok) {
+      console.error('Failed to load history analysis:', formatErrorBody(res.status, text))
+      historyAnalysis.value = null
+      return
+    }
+    const data = text ? JSON.parse(text) : null
+    historyAnalysis.value = data
+    // Wait for next tick and a bit more for DOM to be ready
+    await nextTick()
+    setTimeout(() => {
+      initHistoryChart()
+    }, 100)
+  } catch (err) {
+    console.error('Failed to load history analysis:', err)
+    historyAnalysis.value = null
+  }
+}
+
+function initHistoryChart() {
+  if (!historyAnalysis.value || !historyAnalysis.value.total_shipments || historyAnalysis.value.total_shipments === 0) {
+    return
+  }
+  
+  if (!historyChart.value) {
+    return
+  }
+  
+  const existingChart = echarts.getInstanceByDom(historyChart.value)
+  if (existingChart) {
+    existingChart.dispose()
+  }
+  
+  const chart = echarts.init(historyChart.value)
+  const analysis = historyAnalysis.value
+  
+  const option = {
+    title: {
+      text: 'History Analysis Overview',
+      left: 'center'
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow'
+      },
+      formatter: '{b}: {c}'
+    },
+    grid: {
+      left: '20%',
+      right: '20%',
+      bottom: '15%',
+      top: '15%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: ['Total Shipments', 'Potential Savings %']
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: {
+        formatter: '{value}'
+      }
+    },
+    series: [
+      {
+        name: 'History Analysis',
+        type: 'bar',
+        barWidth: '40%',
+        data: [
+          {
+            value: Math.round(analysis.total_shipments || 0),
+            itemStyle: {
+              color: '#5470c6'
+            }
+          },
+          {
+            value: Math.round((analysis.potential_savings_percent || 0) * 100) / 100,
+            itemStyle: {
+              color: '#91cc75'
+            }
+          }
+        ],
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.5)'
+          }
+        },
+        label: {
+          show: true,
+          position: 'top',
+          formatter: function(params) {
+            if (params.dataIndex === 0) {
+              return params.value
+            } else {
+              return params.value + '%'
+            }
+          }
+        }
+      }
+    ]
+  }
+  chart.setOption(option)
+}
+
 watch(
   isLoggedIn,
   (loggedIn) => {
-    if (loggedIn) loadSummary()
+    if (loggedIn) {
+      loadSummary()
+      loadHistoryAnalysis()
+    }
     else {
       summary.value = null
+      historyAnalysis.value = null
       message.value = ''
     }
   },
@@ -340,18 +458,22 @@ watch(
 onMounted(() => {
   // Reinitialize charts on window resize
   window.addEventListener('resize', () => {
-    if (emissionsChart.value) {
-      echarts.init(emissionsChart.value).resize()
-    }
-    if (supplierChart.value) {
-      echarts.init(supplierChart.value).resize()
-    }
-    if (shipmentChart.value) {
-      echarts.init(shipmentChart.value).resize()
-    }
-    if (trendChart.value) {
-      echarts.init(trendChart.value).resize()
-    }
+    const chartInstances = [
+      { ref: emissionsChart.value, name: 'emissions' },
+      { ref: supplierChart.value, name: 'supplier' },
+      { ref: shipmentChart.value, name: 'shipment' },
+      { ref: trendChart.value, name: 'trend' },
+      { ref: historyChart.value, name: 'history' }
+    ]
+    
+    chartInstances.forEach(({ ref, name }) => {
+      if (ref) {
+        const instance = echarts.getInstanceByDom(ref)
+        if (instance) {
+          instance.resize()
+        }
+      }
+    })
   })
 })
 </script>
@@ -438,6 +560,49 @@ onMounted(() => {
         <!-- Charts Section -->
         <div class="charts-container">
           <h2 class="section-title">Sustainability Insights</h2>
+          
+          <!-- History Analysis Section -->
+          <div v-if="historyAnalysis" class="history-analysis-section" :class="{ 'history-analysis-section--empty': !historyAnalysis.total_shipments }">
+            <h3 class="subsection-title">History Analysis & Smart Recommendations</h3>
+            <div class="history-kpi-row">
+              <div class="kpi-card-mini">
+                <h4 class="kpi-card-mini__label">Total Shipments</h4>
+                <p class="kpi-card-mini__value">{{ historyAnalysis.total_shipments }}</p>
+              </div>
+              <div class="kpi-card-mini">
+                <h4 class="kpi-card-mini__label">Total Carbon Emission</h4>
+                <p class="kpi-card-mini__value">{{ Number(historyAnalysis.total_carbon_emission).toFixed(2) }} <span class="unit-sm">kg CO2e</span></p>
+              </div>
+              <div class="kpi-card-mini">
+                <h4 class="kpi-card-mini__label">Average Emission/Shipment</h4>
+                <p class="kpi-card-mini__value">{{ Number(historyAnalysis.average_emission_per_shipment).toFixed(2) }} <span class="unit-sm">kg CO2e</span></p>
+              </div>
+              <div class="kpi-card-mini">
+                <h4 class="kpi-card-mini__label">Most Used Mode</h4>
+                <p class="kpi-card-mini__value">{{ historyAnalysis.most_used_transport_mode }}</p>
+              </div>
+              <div class="kpi-card-mini">
+                <h4 class="kpi-card-mini__label">Lowest Carbon Mode</h4>
+                <p class="kpi-card-mini__value">{{ historyAnalysis.lowest_carbon_transport_mode }}</p>
+              </div>
+            </div>
+            
+            <div class="history-savings">
+              <div class="savings-card">
+                <h4 class="savings-card__title">Potential Savings</h4>
+                <p class="savings-card__percent">{{ Number(historyAnalysis.potential_savings_percent).toFixed(1) }}%</p>
+                <p class="savings-card__amount">({{ Number(historyAnalysis.potential_savings_amount).toFixed(2) }} kg CO2e)</p>
+              </div>
+              <div class="recommendation-card">
+                <h4 class="recommendation-card__title">Recommendation</h4>
+                <p class="recommendation-card__text">{{ historyAnalysis.recommendation }}</p>
+              </div>
+            </div>
+            
+            <div v-if="historyAnalysis.total_shipments > 0" class="history-chart-container">
+              <div ref="historyChart" class="chart-container-sm"></div>
+            </div>
+          </div>
           
           <div class="charts-grid">
             <div class="chart-card">
@@ -710,5 +875,126 @@ onMounted(() => {
 .year-tag--selected:hover {
   background: #4a5c4a;
   border-color: #4a5c4a;
+}
+
+/* History Analysis Styles */
+.history-analysis-section {
+  background: linear-gradient(160deg, #f0f7f0 0%, #e4ede4 100%);
+  border: 1px solid #b5d4b5;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.history-analysis-section--empty {
+  padding: 1.5rem;
+}
+
+.subsection-title {
+  margin: 0 0 1rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #3d5340;
+}
+
+.history-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.kpi-card-mini {
+  background: #fff;
+  border: 1px solid #c5d6c5;
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.kpi-card-mini__label {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #5a6b5a;
+}
+
+.kpi-card-mini__value {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: #2d4a2c;
+}
+
+.unit-sm {
+  font-size: 0.5em;
+  font-weight: 700;
+  color: #5f795f;
+}
+
+.history-savings {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.savings-card {
+  background: linear-gradient(135deg, #73d13d 0%, #52c41a 100%);
+  border-radius: 8px;
+  padding: 1.25rem;
+  text-align: center;
+  color: #fff;
+}
+
+.savings-card__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.savings-card__percent {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+  font-weight: 900;
+  color: #fff;
+}
+
+.savings-card__amount {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #fff;
+}
+
+.recommendation-card {
+  background: #fff;
+  border: 1px solid #c5d6c5;
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.recommendation-card__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #3d5340;
+}
+
+.recommendation-card__text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #5a6b5a;
+  line-height: 1.5;
+}
+
+.history-chart-container {
+  margin-top: 1rem;
+}
+
+.chart-container-sm {
+  width: 100%;
+  height: 250px;
 }
 </style>

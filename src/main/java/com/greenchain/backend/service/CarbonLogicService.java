@@ -1,8 +1,11 @@
 package com.greenchain.backend.service;
 
 import com.greenchain.backend.dto.CarbonCalculateResponse;
+import com.greenchain.backend.dto.HistoryAnalysisResponse;
 import com.greenchain.backend.dto.RecommendResponse;
+import com.greenchain.backend.model.Shipment;
 import com.greenchain.backend.model.TransportMode;
+import com.greenchain.backend.repository.ShipmentRepository;
 import com.greenchain.backend.repository.TransportModeRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -15,9 +18,11 @@ import java.util.List;
 public class CarbonLogicService {
 
     private final TransportModeRepository transportModeRepository;
+    private final ShipmentRepository shipmentRepository;
 
-    public CarbonLogicService(TransportModeRepository transportModeRepository) {
+    public CarbonLogicService(TransportModeRepository transportModeRepository, ShipmentRepository shipmentRepository) {
         this.transportModeRepository = transportModeRepository;
+        this.shipmentRepository = shipmentRepository;
     }
 
     public CarbonCalculateResponse calculate(Double distanceKm, Double cargoWeightTons, String mode) {
@@ -223,6 +228,215 @@ public class CarbonLogicService {
         }
 
         return score;
+    }
+
+    public HistoryAnalysisResponse analyzeHistoryData() {
+        List<Shipment> allShipments = shipmentRepository.findAll();
+
+        if (allShipments.isEmpty()) {
+            return new HistoryAnalysisResponse(
+                    0, 0.0, 0.0, "N/A", "N/A", 0.0, 0.0,
+                    "No historical data available. Start recording shipments to get insights.");
+        }
+
+        int totalShipments = allShipments.size();
+
+        // Calculate total carbon emission
+        double totalEmission = allShipments.stream()
+                .filter(s -> s.getCalculatedCarbonEmission() != null)
+                .mapToDouble(Shipment::getCalculatedCarbonEmission)
+                .sum();
+
+        // Calculate average emission per shipment
+        double avgEmission = totalEmission / totalShipments;
+
+        // Find most used transport mode
+        java.util.Map<String, Long> modeUsageCount = new java.util.HashMap<>();
+        for (Shipment s : allShipments) {
+            if (s.getTransportMode() != null && s.getTransportMode().getMode() != null) {
+                String modeName = s.getTransportMode().getMode().name();
+                modeUsageCount.merge(modeName, 1L, Long::sum);
+            }
+        }
+        String mostUsedMode = modeUsageCount.entrySet().stream()
+                .max(java.util.Map.Entry.comparingByValue())
+                .map(java.util.Map.Entry::getKey)
+                .orElse("N/A");
+
+        // Find lowest carbon transport mode (based on historical average)
+        java.util.Map<String, Double> modeEmissionSum = new java.util.HashMap<>();
+        java.util.Map<String, Long> modeCount = new java.util.HashMap<>();
+        for (Shipment s : allShipments) {
+            if (s.getTransportMode() != null && s.getTransportMode().getMode() != null
+                    && s.getCalculatedCarbonEmission() != null) {
+                String modeName = s.getTransportMode().getMode().name();
+                modeEmissionSum.merge(modeName, s.getCalculatedCarbonEmission(), Double::sum);
+                modeCount.merge(modeName, 1L, Long::sum);
+            }
+        }
+
+        String lowestCarbonMode = modeEmissionSum.entrySet().stream()
+                .min((e1, e2) -> {
+                    double avg1 = e1.getValue() / modeCount.get(e1.getKey());
+                    double avg2 = e2.getValue() / modeCount.get(e2.getKey());
+                    return Double.compare(avg1, avg2);
+                })
+                .map(java.util.Map.Entry::getKey)
+                .orElse("N/A");
+
+        // Calculate potential savings if user switched to lowest carbon mode
+        List<TransportMode> allModes = transportModeRepository.findAll();
+        TransportMode lowestFactorMode = allModes.stream()
+                .filter(m -> m.getEmissionFactorPerKmPerTon() != null && m.getEmissionFactorPerKmPerTon() > 0)
+                .min(Comparator.comparing(TransportMode::getEmissionFactorPerKmPerTon))
+                .orElse(null);
+
+        double potentialSavingsPercent = 0.0;
+        double potentialSavingsAmount = 0.0;
+        String recommendation = "";
+
+        if (lowestFactorMode != null && !"N/A".equals(mostUsedMode) && !mostUsedMode.equals(lowestCarbonMode)) {
+            TransportMode mostUsedTransportMode = allModes.stream()
+                    .filter(m -> m.getMode() != null && m.getMode().name().equals(mostUsedMode))
+                    .findFirst()
+                    .orElse(null);
+
+            if (mostUsedTransportMode != null) {
+                double currentFactor = mostUsedTransportMode.getEmissionFactorPerKmPerTon();
+                double bestFactor = lowestFactorMode.getEmissionFactorPerKmPerTon();
+                if (currentFactor > 0) {
+                    potentialSavingsPercent = ((currentFactor - bestFactor) / currentFactor) * 100.0;
+                    potentialSavingsAmount = totalEmission * (potentialSavingsPercent / 100.0);
+                }
+
+                recommendation = String.format(
+                        "Based on your history, switching from %s to %s for your shipments could reduce carbon emissions by %.1f%% (%.2f kg CO2e). Consider using %s for long-distance heavy cargo shipments.",
+                        mostUsedMode, lowestCarbonMode, potentialSavingsPercent, potentialSavingsAmount,
+                        lowestCarbonMode);
+            }
+        } else {
+            recommendation = "Great job! You're already using the most eco-friendly transport mode for your shipments.";
+        }
+
+        return new HistoryAnalysisResponse(
+                totalShipments,
+                totalEmission,
+                avgEmission,
+                mostUsedMode,
+                lowestCarbonMode,
+                potentialSavingsPercent,
+                potentialSavingsAmount,
+                recommendation);
+    }
+
+    public RecommendResponse recommendBestModeFromHistory(String origin, String destination, Double cargoWeightTons) {
+        // Find similar historical shipments based on origin/destination patterns
+        List<Shipment> allShipments = shipmentRepository.findAll();
+
+        if (allShipments.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "No historical data available for smart recommendation");
+        }
+
+        // Find shipments with similar origin or destination
+        List<Shipment> similarShipments = allShipments.stream()
+                .filter(s -> origin != null && destination != null)
+                .filter(s -> (origin.equalsIgnoreCase(s.getOrigin()) || origin.equalsIgnoreCase(s.getDestination())) ||
+                        (destination.equalsIgnoreCase(s.getOrigin())
+                                || destination.equalsIgnoreCase(s.getDestination())))
+                .collect(java.util.stream.Collectors.toList());
+
+        // If no similar shipments found, use distance-based recommendation
+        if (similarShipments.isEmpty()) {
+            // Estimate distance if not provided
+            Double estimatedDistance = estimateDistance(origin, destination);
+            return recommendBestModeFromDistanceAndWeight(estimatedDistance, cargoWeightTons);
+        }
+
+        // Find best performing mode from similar shipments
+        java.util.Map<String, Double> modeEmissionSum = new java.util.HashMap<>();
+        java.util.Map<String, Long> modeCount = new java.util.HashMap<>();
+
+        for (Shipment s : similarShipments) {
+            if (s.getTransportMode() != null && s.getTransportMode().getMode() != null
+                    && s.getCalculatedCarbonEmission() != null) {
+                String modeName = s.getTransportMode().getMode().name();
+                modeEmissionSum.merge(modeName, s.getCalculatedCarbonEmission(), Double::sum);
+                modeCount.merge(modeName, 1L, Long::sum);
+            }
+        }
+
+        // Find the mode with lowest average emission
+        String bestHistoricalMode = modeEmissionSum.entrySet().stream()
+                .min((e1, e2) -> {
+                    double avg1 = e1.getValue() / modeCount.get(e1.getKey());
+                    double avg2 = e2.getValue() / modeCount.get(e2.getKey());
+                    return Double.compare(avg1, avg2);
+                })
+                .map(java.util.Map.Entry::getKey)
+                .orElse(null);
+
+        if (bestHistoricalMode == null) {
+            Double estimatedDistance = estimateDistance(origin, destination);
+            return recommendBestModeFromDistanceAndWeight(estimatedDistance, cargoWeightTons);
+        }
+
+        // Calculate emissions and savings
+        TransportMode.ModeType bestModeType = parseMode(bestHistoricalMode);
+        TransportMode bestMode = transportModeRepository.findByMode(bestModeType)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "unknown mode: " + bestHistoricalMode));
+
+        Double estimatedDistance = estimateDistance(origin, destination);
+        double emission = 0;
+        if (estimatedDistance != null && cargoWeightTons != null) {
+            emission = bestMode.getEmissionFactorPerKmPerTon() * estimatedDistance * cargoWeightTons;
+        }
+
+        return new RecommendResponse(
+                bestHistoricalMode.toLowerCase(),
+                "Based on similar routes",
+                emission,
+                "kg CO2e",
+                emission,
+                emission,
+                1.0,
+                1.0);
+    }
+
+    private Double estimateDistance(String origin, String destination) {
+        // Simple estimation based on string length difference as a proxy
+        // In a real application, this would use a geocoding API or distance matrix API
+        if (origin == null || destination == null) {
+            return null;
+        }
+        int lengthDiff = Math.abs(origin.length() - destination.length());
+        // Return a default medium distance estimate
+        return 1000.0 + (lengthDiff * 100.0);
+    }
+
+    private RecommendResponse recommendBestModeFromDistanceAndWeight(Double distanceKm, Double cargoWeightTons) {
+        List<TransportMode> all = transportModeRepository.findAll();
+        List<TransportMode> validModes = all.stream()
+                .filter(m -> m.getEmissionFactorPerKmPerTon() != null && m.getEmissionFactorPerKmPerTon() > 0)
+                .collect(java.util.stream.Collectors.toList());
+
+        TransportMode best = recommendBestModeBasedOnContext(validModes, distanceKm, cargoWeightTons);
+
+        double emission = 0;
+        if (distanceKm != null && cargoWeightTons != null) {
+            emission = best.getEmissionFactorPerKmPerTon() * distanceKm * cargoWeightTons;
+        }
+
+        return new RecommendResponse(
+                best.getMode().name().toLowerCase(),
+                "Based on distance & weight",
+                emission,
+                "kg CO2e",
+                emission,
+                emission,
+                1.0,
+                1.0);
     }
 
     private TransportMode.ModeType parseMode(String mode) {

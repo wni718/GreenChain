@@ -28,6 +28,7 @@ const form = ref({
 
 const showRecommendation = ref(false)
 const recommendation = ref(null)
+const smartRecommendation = ref(null)
 const recommendationLoading = ref(false)
 
 function setMsg(text, kind = 'err') {
@@ -174,6 +175,7 @@ function closeDialog() {
   editingId.value = null
   showRecommendation.value = false
   recommendation.value = null
+  smartRecommendation.value = null
 }
 
 async function getRecommendation() {
@@ -218,6 +220,45 @@ async function getRecommendation() {
       showRecommendation.value = true
     } catch {
       setMsg('Failed to parse recommendation result.')
+    }
+  } catch {
+    setMsg('Cannot connect to the server. Please check if the backend is running.')
+  } finally {
+    recommendationLoading.value = false
+  }
+}
+
+async function getSmartRecommendation() {
+  const origin = form.value.origin.trim()
+  const destination = form.value.destination.trim()
+  const weight = form.value.cargoWeightTons.trim()
+
+  if (!origin && !destination) {
+    setMsg('Please enter origin or destination for smart recommendation.')
+    return
+  }
+
+  recommendationLoading.value = true
+  smartRecommendation.value = null
+
+  try {
+    let url = `/api/recommend/smart?`
+    if (origin) url += `origin=${encodeURIComponent(origin)}&`
+    if (destination) url += `destination=${encodeURIComponent(destination)}&`
+    if (weight) url += `cargo_weight_tons=${encodeURIComponent(weight)}`
+
+    const res = await apiFetch(url)
+    const text = await res.text()
+
+    if (!res.ok) {
+      setMsg(formatErrorBody(res.status, text))
+      return
+    }
+
+    try {
+      smartRecommendation.value = JSON.parse(text)
+    } catch {
+      setMsg('Failed to parse smart recommendation result.')
     }
   } catch {
     setMsg('Cannot connect to the server. Please check if the backend is running.')
@@ -441,6 +482,15 @@ watch(
                 >
                   {{ recommendationLoading ? 'Recommending...' : 'Recommend' }}
                 </button>
+                <button 
+                  type="button" 
+                  class="btn btn--ghost" 
+                  @click="getSmartRecommendation"
+                  :disabled="recommendationLoading"
+                  style="white-space: nowrap;"
+                >
+                  {{ recommendationLoading ? 'Loading...' : 'Smart' }}
+                </button>
               </div>
               <!-- Recommendation result display -->
               <div v-if="showRecommendation && recommendation" style="margin-top: 0.5rem; padding: 0.75rem; background: #f0f8f0; border-radius: 6px; border: 1px solid #d0e8d0;">
@@ -468,6 +518,19 @@ watch(
                     <strong>Cost factor:</strong> {{ recommendation.cost_factor ? (recommendation.cost_factor < 1 ? 'Cheaper' : recommendation.cost_factor > 1 ? 'More expensive' : 'Same') : 'N/A' }}
                   </p>
                 </div>
+              </div>
+              <!-- Smart Recommendation result display -->
+              <div v-if="smartRecommendation" style="margin-top: 0.5rem; padding: 0.75rem; background: #fff8f0; border-radius: 6px; border: 1px solid #ffe0b2;">
+                <h4 style="margin: 0 0 0.5rem; color: #e65100; font-size: 0.9rem;">Smart Recommendation (Based on History)</h4>
+                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                  <strong>Recommended transport mode:</strong> {{ smartRecommendation.best_mode || 'N/A' }}
+                </p>
+                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                  <strong>Based on:</strong> {{ smartRecommendation.saving || 'Historical data' }}
+                </p>
+                <p style="margin: 0; font-size: 0.85rem;">
+                  <strong>Estimated emission:</strong> {{ smartRecommendation.current_emission ? smartRecommendation.current_emission.toFixed(2) : '0' }} {{ smartRecommendation.saving_amount_unit || 'kg CO2e' }}
+                </p>
               </div>
             </label>
             <label class="field">

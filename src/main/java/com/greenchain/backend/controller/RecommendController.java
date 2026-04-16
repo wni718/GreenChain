@@ -1,5 +1,6 @@
 package com.greenchain.backend.controller;
 
+import com.greenchain.backend.dto.HistoryAnalysisResponse;
 import com.greenchain.backend.dto.RecommendResponse;
 import com.greenchain.backend.service.CarbonLogicService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,5 +22,18 @@ public class RecommendController {
             @RequestParam(value = "distance_km", required = false) Double distanceKm,
             @RequestParam(value = "cargo_weight_tons", required = false) Double cargoWeightTons) {
         return carbonLogicService.recommendBestMode(currentMode, distanceKm, cargoWeightTons);
+    }
+
+    @GetMapping("/api/recommend/history-analysis")
+    public HistoryAnalysisResponse analyzeHistory() {
+        return carbonLogicService.analyzeHistoryData();
+    }
+
+    @GetMapping("/api/recommend/smart")
+    public RecommendResponse smartRecommend(
+            @RequestParam(value = "origin", required = false) String origin,
+            @RequestParam(value = "destination", required = false) String destination,
+            @RequestParam(value = "cargo_weight_tons", required = false) Double cargoWeightTons) {
+        return carbonLogicService.recommendBestModeFromHistory(origin, destination, cargoWeightTons);
     }
 }
