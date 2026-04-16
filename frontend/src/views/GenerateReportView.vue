@@ -92,7 +92,7 @@ async function generateChartsHtml(summary, suppliers, shipments) {
       {
         name: 'Total Emissions',
         type: 'bar',
-        data: [Number(summary.totalEmissionsKg || 0)],
+        data: [Number(Number(summary.totalEmissionsKg || 0).toFixed(2))],
         itemStyle: {
           color: '#ff7875'
         }
@@ -100,7 +100,7 @@ async function generateChartsHtml(summary, suppliers, shipments) {
       {
         name: 'Avoided Emissions',
         type: 'bar',
-        data: [Number(summary.estimatedAvoidedEmissionsKg || 0)],
+        data: [Number(Number(summary.estimatedAvoidedEmissionsKg || 0).toFixed(2))],
         itemStyle: {
           color: '#73d13d'
         }
@@ -227,12 +227,14 @@ async function generateChartsHtml(summary, suppliers, shipments) {
   shipmentChart.dispose()
   chartContainer.removeChild(shipmentChartEl)
 
-  // Carbon Emissions Trend Chart
+  // Carbon Emissions Trend Chart - All Years
   chartContainer.appendChild(trendChartEl)
   const trendChart = echarts.init(trendChartEl)
+  // Use a different color for All Years chart
+  const allYearsColor = '#000000'
   trendChart.setOption({
     title: {
-      text: 'Carbon Emissions Trend',
+      text: 'Carbon Emissions Trend (All Years)',
       left: 'center'
     },
     tooltip: {
@@ -265,16 +267,16 @@ async function generateChartsHtml(summary, suppliers, shipments) {
         stack: 'Total',
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(255, 120, 117, 0.5)' },
-            { offset: 1, color: 'rgba(255, 120, 117, 0.1)' }
+            { offset: 0, color: allYearsColor + '80' }, // 50% opacity
+            { offset: 1, color: allYearsColor + '10' }  // 10% opacity
           ])
         },
-        data: [2800, 3200, 2900, 3500, 4200, 3800, 4500, 4100, 3900, 3600, 3300, 3000],
+        data: summary.monthlyEmissions ? summary.monthlyEmissions.map(val => Number(Number(val).toFixed(2))) : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         lineStyle: {
-          color: '#ff7875'
+          color: allYearsColor
         },
         itemStyle: {
-          color: '#ff7875'
+          color: allYearsColor
         }
       }
     ]
@@ -282,17 +284,96 @@ async function generateChartsHtml(summary, suppliers, shipments) {
   trendChart.resize()
   await new Promise(resolve => setTimeout(resolve, 500))
   chartImages.push({
-    title: 'Carbon Emissions Trend',
+    title: 'Carbon Emissions Trend (All Years)',
     img: trendChart.getDataURL({ type: 'png', pixelRatio: 2 })
   })
   trendChart.dispose()
   chartContainer.removeChild(trendChartEl)
+  
+  // Carbon Emissions Trend Chart - By Year
+  if (summary.emissionsByYearMonth && summary.emissionsByYearMonth.length > 0) {
+    // Color palette for different years
+    const colors = ['#ff7875', '#409eff', '#73d13d', '#9254de', '#faad14', '#13c2c2']
+    
+    // Generate chart for each year
+    summary.emissionsByYearMonth.forEach((yearData, index) => {
+      const yearTrendChartEl = document.createElement('div')
+      yearTrendChartEl.style.cssText = `width: 700px; height: 300px;`
+      chartContainer.appendChild(yearTrendChartEl)
+      
+      const yearTrendChart = echarts.init(yearTrendChartEl)
+      const color = colors[index % colors.length]
+      
+      yearTrendChart.setOption({
+        title: {
+          text: `Carbon Emissions Trend (${yearData.year})`,
+          left: 'center'
+        },
+        tooltip: {
+          trigger: 'axis'
+        },
+        legend: {
+          data: [`${yearData.year} Emissions`],
+          bottom: 10
+        },
+        grid: {
+          left: '3%',
+          right: '4%',
+          bottom: '15%',
+          top: '15%',
+          containLabel: true
+        },
+        xAxis: {
+          type: 'category',
+          boundaryGap: false,
+          data: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        },
+        yAxis: {
+          type: 'value',
+          name: 'kg CO2e'
+        },
+        series: [
+          {
+            name: `${yearData.year} Emissions`,
+            type: 'line',
+            stack: 'Total',
+            areaStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: color + '80' }, // 50% opacity
+                { offset: 1, color: color + '10' }  // 10% opacity
+              ])
+            },
+            data: yearData.monthlyEmissions ? yearData.monthlyEmissions.map(val => Number(Number(val).toFixed(2))) : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            lineStyle: {
+              color: color
+            },
+            itemStyle: {
+              color: color
+            }
+          }
+        ]
+      })
+      
+      yearTrendChart.resize()
+      chartImages.push({
+        title: `Carbon Emissions Trend (${yearData.year})`,
+        img: yearTrendChart.getDataURL({ type: 'png', pixelRatio: 2 })
+      })
+      yearTrendChart.dispose()
+      chartContainer.removeChild(yearTrendChartEl)
+    })
+  }
 
   // Emissions by Shipment Date Chart
   chartContainer.appendChild(emissionsByDateChartEl)
   const emissionsByDateChart = echarts.init(emissionsByDateChartEl)
-  const dates = (summary.emissionsByShipmentDate || []).map((r) => r.date)
-  const seriesLine = (summary.emissionsByShipmentDate || []).map((r) => r.emissionsKg)
+  // Sort emissions by date in ascending order (oldest to newest)
+  const sortedEmissions = [...(summary.emissionsByShipmentDate || [])].sort((a, b) => {
+    return new Date(a.date) - new Date(b.date)
+  })
+  
+  const dates = sortedEmissions.map((r) => r.date)
+  const seriesLine = sortedEmissions.map((r) => Number(Number(r.emissionsKg).toFixed(2)))
 
   if (dates.length === 0) {
     emissionsByDateChart.setOption({
@@ -362,7 +443,7 @@ async function generateChartsHtml(summary, suppliers, shipments) {
   const emissionsByTransportModeChart = echarts.init(emissionsByTransportModeChartEl)
   const pieDataRaw = (summary.emissionsByTransportMode || []).map((r) => ({
     name: r.transportMode,
-    value: Number(r.emissionsKg) || 0,
+    value: Number(Number(r.emissionsKg).toFixed(2)) || 0,
   }))
   const pieData = pieDataRaw.filter((d) => d.value > 0)
 
@@ -647,15 +728,15 @@ async function exportPdf() {
         </tr>
         <tr>
           <td style="border: 1px solid #c5d6c5; padding: 8px;">Total Emissions (kg CO2e)</td>
-          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${summary.totalEmissionsKg || 0}</td>
+          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${Number(summary.totalEmissionsKg || 0).toFixed(2)}</td>
         </tr>
         <tr>
           <td style="border: 1px solid #c5d6c5; padding: 8px;">Estimated Avoided Emissions (kg CO2e)</td>
-          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${summary.estimatedAvoidedEmissionsKg || 0}</td>
+          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${Number(summary.estimatedAvoidedEmissionsKg || 0).toFixed(2)}</td>
         </tr>
         <tr>
           <td style="border: 1px solid #c5d6c5; padding: 8px;">Reduction vs Highest Factor Mode (%)</td>
-          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${summary.reductionPercentVsHighestFactorMode || 0}%</td>
+          <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${Number(summary.reductionPercentVsHighestFactorMode || 0).toFixed(2)}%</td>
         </tr>
         <tr>
           <td style="border: 1px solid #c5d6c5; padding: 8px;">Shipment Count</td>
@@ -684,7 +765,7 @@ async function exportPdf() {
         ${(summary.emissionsByTransportMode || []).map(row => `
           <tr>
             <td style="border: 1px solid #c5d6c5; padding: 8px;">${row.transportMode}</td>
-            <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${row.emissionsKg}</td>
+            <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${Number(row.emissionsKg).toFixed(2)}</td>
           </tr>
         `).join('')}
       </table>
@@ -720,8 +801,8 @@ async function exportPdf() {
             <tr>
               <td style="border: 1px solid #c5d6c5; padding: 8px;">${sname}</td>
               <td style="border: 1px solid #c5d6c5; padding: 8px;">${mode}</td>
-              <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${sh.distanceKm || 0}</td>
-              <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${sh.calculatedCarbonEmission || 0}</td>
+              <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${Number(sh.distanceKm || 0).toFixed(2)}</td>
+              <td style="border: 1px solid #c5d6c5; padding: 8px; text-align: right;">${Number(sh.calculatedCarbonEmission || 0).toFixed(2)}</td>
             </tr>
           `
         }).join('')}

@@ -337,10 +337,10 @@ watch(
               <td>{{ modeLabel(row) }}</td>
               <td>{{ row.origin || '—' }}</td>
               <td>{{ row.destination || '—' }}</td>
-              <td>{{ row.distanceKm != null ? row.distanceKm : '—' }}</td>
-              <td>{{ row.cargoWeightTons != null ? row.cargoWeightTons : '—' }}</td>
+              <td>{{ row.distanceKm != null ? Number(row.distanceKm).toFixed(2) : '—' }}</td>
+              <td>{{ row.cargoWeightTons != null ? Number(row.cargoWeightTons).toFixed(2) : '—' }}</td>
               <td>{{ row.shipmentDate || '—' }}</td>
-              <td>{{ row.calculatedCarbonEmission != null ? row.calculatedCarbonEmission : '—' }}</td>
+              <td>{{ row.calculatedCarbonEmission != null ? Number(row.calculatedCarbonEmission).toFixed(2) : '—' }}</td>
               <td class="col-actions">
                 <button type="button" class="link-btn" @click="openEdit(row)">Edit</button>
                 <button type="button" class="link-btn link-btn--danger" @click="removeRow(row)">

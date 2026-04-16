@@ -94,6 +94,72 @@ public class DashboardController {
             emissionsByTransportMode.add(map);
         });
 
+        // Calculate emissions by month
+        Map<Integer, Double> emissionsByMonthMap = new HashMap<>();
+        // Initialize all months with 0 emissions
+        for (int i = 1; i <= 12; i++) {
+            emissionsByMonthMap.put(i, 0.0);
+        }
+
+        // Calculate emissions for each month
+        for (Shipment shipment : allShipments) {
+            if (shipment.getShipmentDate() != null) {
+                int month = shipment.getShipmentDate().getMonthValue();
+                double emissions = shipment.getCalculatedCarbonEmission() != null
+                        ? shipment.getCalculatedCarbonEmission()
+                        : 0.0;
+                emissionsByMonthMap.put(month, emissionsByMonthMap.get(month) + emissions);
+            }
+        }
+
+        // Convert month emissions to list
+        List<Double> monthlyEmissions = new ArrayList<>();
+        for (int i = 1; i <= 12; i++) {
+            monthlyEmissions.add(emissionsByMonthMap.get(i));
+        }
+
+        // Calculate emissions by year and month
+        Map<Integer, Map<Integer, Double>> emissionsByYearMonthMap = new HashMap<>();
+
+        // Process all shipments to group by year and month
+        for (Shipment shipment : allShipments) {
+            if (shipment.getShipmentDate() != null) {
+                int year = shipment.getShipmentDate().getYear(); // Convert to actual year
+                int month = shipment.getShipmentDate().getMonthValue();
+                double emissions = shipment.getCalculatedCarbonEmission() != null
+                        ? shipment.getCalculatedCarbonEmission()
+                        : 0.0;
+
+                // Initialize year map if not exists
+                if (!emissionsByYearMonthMap.containsKey(year)) {
+                    Map<Integer, Double> monthMap = new HashMap<>();
+                    for (int i = 1; i <= 12; i++) {
+                        monthMap.put(i, 0.0);
+                    }
+                    emissionsByYearMonthMap.put(year, monthMap);
+                }
+
+                // Add emissions to the specific month
+                Map<Integer, Double> monthMap = emissionsByYearMonthMap.get(year);
+                monthMap.put(month, monthMap.get(month) + emissions);
+            }
+        }
+
+        // Convert year-month emissions to list of maps for response
+        List<Map<String, Object>> emissionsByYearMonth = new ArrayList<>();
+        emissionsByYearMonthMap.forEach((year, monthMap) -> {
+            Map<String, Object> yearData = new HashMap<>();
+            yearData.put("year", year);
+
+            List<Double> monthlyData = new ArrayList<>();
+            for (int i = 1; i <= 12; i++) {
+                monthlyData.add(monthMap.get(i));
+            }
+            yearData.put("monthlyEmissions", monthlyData);
+
+            emissionsByYearMonth.add(yearData);
+        });
+
         // Create response map
         Map<String, Object> summary = new HashMap<>();
         summary.put("totalEmissionsKg", totalEmissionsKg);
@@ -106,6 +172,8 @@ public class DashboardController {
         summary.put("enterprisesInSupplyChain", enterprisesInSupplyChain);
         summary.put("emissionsByShipmentDate", emissionsByShipmentDate);
         summary.put("emissionsByTransportMode", emissionsByTransportMode);
+        summary.put("monthlyEmissions", monthlyEmissions);
+        summary.put("emissionsByYearMonth", emissionsByYearMonth);
 
         return ResponseEntity.ok(summary);
     }

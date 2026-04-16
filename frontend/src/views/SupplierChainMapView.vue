@@ -242,8 +242,8 @@ function initGlobe() {
   globeInstance
     .arcsData(routes.value)
     .arcColor(() => '#c62828')
-    .arcAltitude(0.45) // Adjust altitude to avoid routes going through the earth and pointing to sky
-    .arcStroke((d) => Math.max((d.emissions / 3000) * (d.weight / 40000), 0.2)) // Calculate stroke width based on both emissions and weight, minimum 0.1
+    .arcAltitude(0.48) // Adjust altitude to avoid routes going through the earth and pointing to sky
+    .arcStroke((d) => Math.max((d.emissions / 90000) * (d.weight / 40000), 0.2)) // Calculate stroke width based on both emissions and weight, minimum 0.1
     .arcLabel(
       (d) =>
         `<div style="padding:4px 6px;">${d.weight.toFixed(0)} kg<br/>${d.emissions.toFixed(2)} kg CO2e<br/>Mode: ${d.mode}</div>`

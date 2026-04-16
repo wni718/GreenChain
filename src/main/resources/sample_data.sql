@@ -92,6 +92,24 @@ SELECT * FROM (
     
     -- More Asian shipments
     SELECT @supplier_cn AS supplier_id, @mode_sea AS transport_mode_id, 'Guangzhou, China' AS origin, 'Bangkok, Thailand' AS destination, 1439.0 AS distance_km, 72.5 AS cargo_weight_tons, '2024-01-07' AS shipment_date, 50.37 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
-    SELECT @supplier_jp AS supplier_id, @mode_rail AS transport_mode_id, 'Osaka, Japan' AS origin, 'Tokyo, Japan' AS destination, 406.0 AS distance_km, 16.8 AS cargo_weight_tons, '2024-01-17' AS shipment_date, 68.54 AS calculated_carbon_emission, NOW() AS calculation_timestamp
+    SELECT @supplier_jp AS supplier_id, @mode_rail AS transport_mode_id, 'Osaka, Japan' AS origin, 'Tokyo, Japan' AS destination, 406.0 AS distance_km, 16.8 AS cargo_weight_tons, '2025-08-17' AS shipment_date, 68.54 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    
+    -- 2024 additional shipments
+    SELECT @supplier_us AS supplier_id, @mode_truck AS transport_mode_id, 'Chicago, USA' AS origin, 'Dallas, USA' AS destination, 1478.0 AS distance_km, 18.2 AS cargo_weight_tons, '2025-09-15' AS shipment_date, 455.00 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    SELECT @supplier_de AS supplier_id, @mode_air AS transport_mode_id, 'Frankfurt, Germany' AS origin, 'Madrid, Spain' AS destination, 1482.0 AS distance_km, 2.8 AS cargo_weight_tons, '2025-10-20' AS shipment_date, 896.56 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    
+    -- 2025 shipments
+    SELECT @supplier_cn AS supplier_id, @mode_sea AS transport_mode_id, 'Shanghai, China' AS origin, 'Singapore' AS destination, 3752.0 AS distance_km, 150.0 AS cargo_weight_tons, '2025-11-10' AS shipment_date, 157.50 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    SELECT @supplier_au AS supplier_id, @mode_truck AS transport_mode_id, 'Brisbane, Australia' AS origin, 'Perth, Australia' AS destination, 4312.0 AS distance_km, 22.5 AS cargo_weight_tons, '2025-12-22' AS shipment_date, 1154.70 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    SELECT @supplier_fr AS supplier_id, @mode_rail AS transport_mode_id, 'Lyon, France' AS origin, 'Zurich, Switzerland' AS destination, 473.0 AS distance_km, 15.3 AS cargo_weight_tons, '2026-01-18' AS shipment_date, 47.43 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    SELECT @supplier_jp AS supplier_id, @mode_air AS transport_mode_id, 'Tokyo, Japan' AS origin, 'Seoul, South Korea' AS destination, 945.0 AS distance_km, 1.9 AS cargo_weight_tons, '2026-02-28' AS shipment_date, 576.90 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    
+    -- 2026 shipments up to April 16
+    SELECT @supplier_us AS supplier_id, @mode_sea AS transport_mode_id, 'Long Beach, USA' AS origin, 'Rotterdam, Netherlands' AS destination, 8230.0 AS distance_km, 180.5 AS cargo_weight_tons, '2026-03-05' AS shipment_date, 955.65 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    SELECT @supplier_ca AS supplier_id, @mode_truck AS transport_mode_id, 'Vancouver, Canada' AS origin, 'Seattle, USA' AS destination, 234.0 AS distance_km, 10.2 AS cargo_weight_tons, '2026-03-14' AS shipment_date, 234.00 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    SELECT @supplier_de AS supplier_id, @mode_rail AS transport_mode_id, 'Berlin, Germany' AS origin, 'Warsaw, Poland' AS destination, 575.0 AS distance_km, 12.8 AS cargo_weight_tons, '2026-03-20' AS shipment_date, 70.40 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    SELECT @supplier_cn AS supplier_id, @mode_air AS transport_mode_id, 'Beijing, China' AS origin, 'Dubai, UAE' AS destination, 6497.0 AS distance_km, 3.2 AS cargo_weight_tons, '2026-04-01' AS shipment_date, 2358.96 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    SELECT @supplier_au AS supplier_id, @mode_sea AS transport_mode_id, 'Sydney, Australia' AS origin, 'Tokyo, Japan' AS destination, 7800.0 AS distance_km, 95.0 AS cargo_weight_tons, '2026-04-10' AS shipment_date, 475.00 AS calculated_carbon_emission, NOW() AS calculation_timestamp UNION
+    SELECT @supplier_fr AS supplier_id, @mode_truck AS transport_mode_id, 'Paris, France' AS origin, 'Brussels, Belgium' AS destination, 304.0 AS distance_km, 8.7 AS cargo_weight_tons, '2026-04-16' AS shipment_date, 82.65 AS calculated_carbon_emission, NOW() AS calculation_timestamp
 ) AS tmp
 WHERE NOT EXISTS (SELECT 1 FROM shipment WHERE origin = tmp.origin AND destination = tmp.destination AND supplier_id = tmp.supplier_id);

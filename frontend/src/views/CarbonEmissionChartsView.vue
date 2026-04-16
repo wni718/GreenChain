@@ -62,8 +62,13 @@ function applyChartOptions() {
   const s = summary.value
   if (!s || !lineEl.value || !pieEl.value) return
 
-  const dates = (s.emissionsByShipmentDate || []).map((r) => r.date)
-  const seriesLine = (s.emissionsByShipmentDate || []).map((r) => r.emissionsKg)
+  // Sort emissions by date in ascending order (oldest to newest)
+  const sortedEmissions = [...(s.emissionsByShipmentDate || [])].sort((a, b) => {
+    return new Date(a.date) - new Date(b.date)
+  })
+  
+  const dates = sortedEmissions.map((r) => r.date)
+  const seriesLine = sortedEmissions.map((r) => Number(r.emissionsKg).toFixed(2))
 
   if (!lineChart) lineChart = echarts.init(lineEl.value)
 
@@ -120,7 +125,7 @@ function applyChartOptions() {
 
   const pieDataRaw = (s.emissionsByTransportMode || []).map((r) => ({
     name: r.transportMode,
-    value: Number(r.emissionsKg) || 0,
+    value: Number(Number(r.emissionsKg).toFixed(2)) || 0,
   }))
   const pieData = pieDataRaw.filter((d) => d.value > 0)
 

@@ -18,6 +18,12 @@ const supplierChart = ref(null)
 const shipmentChart = ref(null)
 const trendChart = ref(null)
 
+// Get available years from data
+const availableYears = computed(() => {
+  if (!summary.value?.emissionsByYearMonth) return []
+  return summary.value.emissionsByYearMonth.map(item => item.year).sort()
+})
+
 function setMsg(text, kind = 'err') {
   message.value = text
   messageKind.value = kind
@@ -191,6 +197,74 @@ function initCharts() {
   // Carbon Emissions Trend Chart
   if (trendChart.value) {
     const chart = echarts.init(trendChart.value)
+    
+    // Color palette for different years
+    const colors = ['#ff7875', '#409eff', '#73d13d', '#9254de', '#faad14', '#13c2c2']
+    
+    // Generate series based on selected years
+    const series = []
+    const legendData = []
+    
+    // Always show total emissions (All Years)
+    legendData.push('All Years Emissions')
+    series.push({
+      name: 'All Years Emissions',
+      type: 'line',
+      stack: 'Total',
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(0, 0, 0, 0.5)' },
+          { offset: 1, color: 'rgba(0, 0, 0, 0.1)' }
+        ])
+      },
+      data: summary.value.monthlyEmissions ? summary.value.monthlyEmissions.map(val => Number(Number(val).toFixed(2))) : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      lineStyle: {
+        color: '#000000'
+      },
+      itemStyle: {
+        color: '#000000'
+      },
+      tooltip: {
+        formatter: function(params) {
+          return params.marker + params.seriesName + ': ' + Number(params.value).toFixed(2) + ' kg CO2e'
+        }
+      }
+    })
+    
+    // Show all years by default
+    const yearsToShow = availableYears.value
+    
+    yearsToShow.forEach((year, index) => {
+      const yearData = summary.value.emissionsByYearMonth?.find(item => item.year === year)
+      if (yearData) {
+        const color = colors[index % colors.length]
+        legendData.push(`${year} Emissions`)
+        series.push({
+          name: `${year} Emissions`,
+          type: 'line',
+          stack: 'Total',
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: color + '80' }, // 50% opacity
+              { offset: 1, color: color + '10' }  // 10% opacity
+            ])
+          },
+          data: yearData.monthlyEmissions ? yearData.monthlyEmissions.map(val => Number(Number(val).toFixed(2))) : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          lineStyle: {
+            color: color
+          },
+          itemStyle: {
+            color: color
+          },
+          tooltip: {
+            formatter: function(params) {
+              return params.marker + params.seriesName + ': ' + Number(params.value).toFixed(2) + ' kg CO2e'
+            }
+          }
+        })
+      }
+    })
+    
     const option = {
       title: {
         text: 'Carbon Emissions Trend',
@@ -200,7 +274,7 @@ function initCharts() {
         trigger: 'axis'
       },
       legend: {
-        data: ['Monthly Emissions'],
+        data: legendData,
         bottom: 10
       },
       grid: {
@@ -219,26 +293,7 @@ function initCharts() {
         type: 'value',
         name: 'kg CO2e'
       },
-      series: [
-        {
-          name: 'Monthly Emissions',
-          type: 'line',
-          stack: 'Total',
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(255, 120, 117, 0.5)' },
-              { offset: 1, color: 'rgba(255, 120, 117, 0.1)' }
-            ])
-          },
-          data: [2800, 3200, 2900, 3500, 4200, 3800, 4500, 4100, 3900, 3600, 3300, 3000],
-          lineStyle: {
-            color: '#ff7875'
-          },
-          itemStyle: {
-            color: '#ff7875'
-          }
-        }
-      ]
+      series: series
     }
     chart.setOption(option)
   }
@@ -383,6 +438,7 @@ onMounted(() => {
         <!-- Charts Section -->
         <div class="charts-container">
           <h2 class="section-title">Sustainability Insights</h2>
+          
           <div class="charts-grid">
             <div class="chart-card">
               <div ref="emissionsChart" class="chart-container"></div>
@@ -593,5 +649,66 @@ onMounted(() => {
   .charts-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Year Selection Styles */
+.year-selection {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border-radius: 10px;
+  border: 1px solid #c5d6c5;
+  background: #f8fbf8;
+}
+
+.year-selection__title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #5f795f;
+}
+
+.year-selection__controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.btn--sm {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.year-selection__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.year-tag {
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid #b5c4b5;
+  color: #3d5340;
+  transition: all 0.2s ease;
+}
+
+.year-tag:hover {
+  background: #f4faf4;
+  border-color: #5f795f;
+}
+
+.year-tag--selected {
+  background: #5f795f;
+  color: #fff;
+  border-color: #5f795f;
+}
+
+.year-tag--selected:hover {
+  background: #4a5c4a;
+  border-color: #4a5c4a;
 }
 </style>
