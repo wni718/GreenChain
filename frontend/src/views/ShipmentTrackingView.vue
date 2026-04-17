@@ -95,15 +95,31 @@ async function loadShipments() {
 async function loadFormOptions() {
   if (!isLoggedIn.value) return
   try {
-    const [supRes, modeRes] = await Promise.all([
-      apiFetch('/api/suppliers'),
-      apiFetch('/api/transport-modes'),
-    ])
-    const supText = await supRes.text()
-    const modeText = await modeRes.text()
+    // Determine which endpoint to use for suppliers based on user role
+    let supRes;
+    if (currentUser.value?.role === 'SUPPLIER') {
+      // For suppliers, only load their own supplier information
+      supRes = await apiFetch('/api/suppliers/me');
+    } else {
+      // For admins, load all suppliers
+      supRes = await apiFetch('/api/suppliers');
+    }
+    
+    const modeRes = await apiFetch('/api/transport-modes');
+    
+    const supText = await supRes.text();
+    const modeText = await modeRes.text();
+    
     if (supRes.ok) {
       try {
-        suppliers.value = supText ? JSON.parse(supText) : []
+        if (currentUser.value?.role === 'SUPPLIER') {
+          // For suppliers, wrap the single supplier in an array
+          const supplierData = supText ? JSON.parse(supText) : null;
+          suppliers.value = supplierData ? [supplierData] : [];
+        } else {
+          // For admins, use the array directly
+          suppliers.value = supText ? JSON.parse(supText) : [];
+        }
       } catch {
         suppliers.value = []
       }
@@ -148,8 +164,17 @@ function openCreate() {
     cargoWeightTons: '',
     shipmentDate: todayIsoDate(),
   }
+  
   dialogOpen.value = true
   loadFormOptions()
+  
+  // If user is a supplier, automatically select their own supplier
+  // This will be updated after loadFormOptions completes
+  setTimeout(() => {
+    if (currentUser.value?.role === 'SUPPLIER' && suppliers.value.length > 0) {
+      form.value.supplierId = suppliers.value[0].id
+    }
+  }, 100)
 }
 
 function openEdit(row) {
@@ -356,8 +381,9 @@ async function getUnifiedRecommendation() {
 }
 
 async function saveShipment() {
-  const sid = form.value.supplierId.trim()
-  const mid = form.value.transportModeId.trim()
+  // Handle supplierId which could be a number (when auto-selected) or a string (when manually selected)
+  const sid = typeof form.value.supplierId === 'string' ? form.value.supplierId.trim() : form.value.supplierId
+  const mid = typeof form.value.transportModeId === 'string' ? form.value.transportModeId.trim() : form.value.transportModeId
   const dist = form.value.distanceKm.trim()
   const wt = form.value.cargoWeightTons.trim()
 
@@ -404,7 +430,8 @@ async function saveShipment() {
       return
     }
     if (res.status === 403) {
-      setMsg('Access denied.')
+      alert("No, you don't have permission to edit the transportation records of other suppliers")
+      closeDialog()
       return
     }
     if (!res.ok) {
@@ -430,7 +457,8 @@ async function removeRow(row) {
       return
     }
     if (res.status === 403) {
-      setMsg('Access denied.')
+      alert('不行，你没有权限编辑其他供应商的运输记录')
+      closeDialog()
       return
     }
     if (!res.ok && res.status !== 204) {

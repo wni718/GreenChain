@@ -6,7 +6,10 @@ import java.util.List;
 
 public interface SupplierRepository extends JpaRepository<Supplier, Long> {
     List<Supplier> findByCountry(String country);
+
     List<Supplier> findByHasEnvironmentalCertificationTrue();
+
+    java.util.Optional<Supplier> findByUserUsername(String username);
 
     long countByHasEnvironmentalCertificationTrue();
 }

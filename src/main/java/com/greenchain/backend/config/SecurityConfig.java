@@ -41,7 +41,8 @@ public class SecurityConfig {
                         // Temporary: open all endpoints for integration / demo (restore role checks before production)
                         .anyRequest().permitAll()
                 )
-                .formLogin(form -> form.disable());
+                .formLogin(form -> form.disable())
+                .httpBasic(httpBasic -> httpBasic.realmName("GreenChain"));
 
         return http.build();
     }

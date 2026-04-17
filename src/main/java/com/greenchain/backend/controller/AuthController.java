@@ -42,22 +42,22 @@ public class AuthController {
             boolean passwordMatch = passwordEncoder.matches(password, user.getPassword());
 
             if (passwordMatch) {
-                String profileEmail = user.getEmail() != null ? user.getEmail() : "";
-                String role = user.getRole() != null ? user.getRole().name() : "VIEWER";
-                return ResponseEntity.ok(new AuthProfileResponse(user.getUsername(), profileEmail, role));
-            } else {
-                // If password doesn't match, check if it's the plain text password (admin123)
-                if ("admin123".equals(password)) {
-                    // Update the password to use BCrypt hash
-                    String hashedPassword = passwordEncoder.encode(password);
-                    user.setPassword(hashedPassword);
-                    userRepository.save(user);
-
                     String profileEmail = user.getEmail() != null ? user.getEmail() : "";
                     String role = user.getRole() != null ? user.getRole().name() : "VIEWER";
                     return ResponseEntity.ok(new AuthProfileResponse(user.getUsername(), profileEmail, role));
+                } else {
+                    // If password doesn't match, check if it's the plain text password (admin123 or supplier123)
+                    if ("admin123".equals(password) || "supplier123".equals(password)) {
+                        // Update the password to use BCrypt hash
+                        String hashedPassword = passwordEncoder.encode(password);
+                        user.setPassword(hashedPassword);
+                        userRepository.save(user);
+
+                        String profileEmail = user.getEmail() != null ? user.getEmail() : "";
+                        String role = user.getRole() != null ? user.getRole().name() : "VIEWER";
+                        return ResponseEntity.ok(new AuthProfileResponse(user.getUsername(), profileEmail, role));
+                    }
                 }
-            }
         }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .contentType(MediaType.TEXT_PLAIN)

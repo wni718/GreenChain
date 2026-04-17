@@ -73,6 +73,12 @@ async function loadList() {
 }
 
 function openCreate() {
+  // Check if user is a supplier
+  if (currentUser.value?.role === 'SUPPLIER') {
+    alert('You are a supplier, you can\'t create a new one')
+    return
+  }
+  
   editingId.value = null
   form.value = {
     name: '',
@@ -137,7 +143,8 @@ async function saveSupplier() {
       return
     }
     if (res.status === 403) {
-      setMsg('Access denied.')
+      alert("No, you don't have permission to edit information about other suppliers")
+      closeDialog()
       return
     }
     if (!res.ok) {
@@ -168,7 +175,8 @@ async function removeRow(row) {
       return
     }
     if (res.status === 403) {
-      setMsg('Access denied.')
+      alert('不行，你没有权限编辑其他供应商的信息')
+      closeDialog()
       return
     }
     if (!res.ok && res.status !== 204) {
