@@ -51,21 +51,37 @@ function initCharts() {
   if (!summary.value) return
 
   if (emissionsChart.value) {
+    const existingChart = echarts.getInstanceByDom(emissionsChart.value)
+    if (existingChart) {
+      existingChart.dispose()
+    }
     const chart = echarts.init(emissionsChart.value)
     chart.setOption(getCarbonEmissionsOption(summary.value))
   }
 
   if (supplierChart.value) {
+    const existingChart = echarts.getInstanceByDom(supplierChart.value)
+    if (existingChart) {
+      existingChart.dispose()
+    }
     const chart = echarts.init(supplierChart.value)
     chart.setOption(getSupplierDistributionOption(summary.value))
   }
 
   if (shipmentChart.value) {
+    const existingChart = echarts.getInstanceByDom(shipmentChart.value)
+    if (existingChart) {
+      existingChart.dispose()
+    }
     const chart = echarts.init(shipmentChart.value)
     chart.setOption(getSupplyChainMetricsOption(summary.value))
   }
 
   if (trendChart.value) {
+    const existingChart = echarts.getInstanceByDom(trendChart.value)
+    if (existingChart) {
+      existingChart.dispose()
+    }
     const chart = echarts.init(trendChart.value)
     chart.setOption(getCarbonEmissionsTrendOption(summary.value, availableYears.value))
   }

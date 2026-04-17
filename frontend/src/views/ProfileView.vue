@@ -30,6 +30,103 @@ const messageKind = ref('err')
 const editMode = ref(false)
 const editForm = ref({})
 
+// Transport recommendation state
+const showRecommendation = ref(false)
+const recommendation = ref(null)
+const smartRecommendation = ref(null)
+const unifiedRecommendation = ref(null)
+const recommendationLoading = ref(false)
+const recommendationForm = ref({
+  origin: '',
+  destination: '',
+  distanceKm: '',
+  cargoWeightTons: ''
+})
+
+// City options by country
+const cityOptionsByCountry = {
+  'United States': [
+    'New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose',
+    'Austin', 'Jacksonville', 'Fort Worth', 'Columbus', 'Charlotte', 'San Francisco', 'Indianapolis', 'Seattle', 'Denver', 'Washington'
+  ],
+  'Canada': [
+    'Toronto', 'Montreal', 'Vancouver', 'Calgary', 'Edmonton', 'Ottawa', 'Winnipeg', 'Quebec City', 'Hamilton', 'Kitchener',
+    'London', 'Victoria', 'Halifax', 'Oshawa', 'Windsor', 'Saskatoon', 'Regina', 'St. Johns', 'Barrie', 'Kelowna'
+  ],
+  'Mexico': [
+    'Mexico City', 'Guadalajara', 'Monterrey', 'Puebla', 'Tijuana', 'León', 'Juárez', 'Zapopan', 'Merida', 'Culiacán',
+    'Chihuahua', 'Saltillo', 'Torreón', 'Mazatlán', 'Aguascalientes', 'Hermosillo', 'San Luis Potosí', 'Toluca', 'Tampico', 'Morelia'
+  ],
+  'Germany': [
+    'Berlin', 'Hamburg', 'Munich', 'Cologne', 'Frankfurt', 'Stuttgart', 'Düsseldorf', 'Dortmund', 'Essen', 'Leipzig',
+    'Bremen', 'Dresden', 'Hanover', 'Nuremberg', 'Duisburg', 'Bochum', 'Wuppertal', 'Bielefeld', 'Bonn', 'Münster'
+  ],
+  'France': [
+    'Paris', 'Marseille', 'Lyon', 'Toulouse', 'Nice', 'Nantes', 'Strasbourg', 'Montpellier', 'Bordeaux', 'Lille',
+    'Rennes', 'Reims', 'Le Havre', 'Saint-Étienne', 'Toulon', 'Grenoble', 'Dijon', 'Angers', 'Nîmes', 'Villeurbanne'
+  ],
+  'Italy': [
+    'Rome', 'Milan', 'Naples', 'Turin', 'Palermo', 'Genoa', 'Bologna', 'Florence', 'Venice', 'Verona',
+    'Bari', 'Catania', 'Messina', 'Padua', 'Trieste', 'Taranto', 'Prato', 'Modena', 'Reggio Emilia', 'Parma'
+  ],
+  'Sweden': [
+    'Stockholm', 'Gothenburg', 'Malmö', 'Uppsala', 'Linköping', 'Västerås', 'Örebro', 'Helsingborg', 'Jönköping', 'Norrköping',
+    'Lund', 'Umeå', 'Gävle', 'Södertälje', 'Eskilstuna', 'Borås', 'Täby', 'Halmstad', 'Växjö', 'Karlstad'
+  ],
+  'Japan': [
+    'Tokyo', 'Yokohama', 'Osaka', 'Nagoya', 'Sapporo', 'Fukuoka', 'Kobe', 'Kyoto', 'Kawasaki', 'Saitama',
+    'Hiroshima', 'Sendai', 'Chiba', 'Kitakyushu', 'Tokushima', 'Okayama', 'Fukushima', 'Nagasaki', 'Kumamoto', 'Kagoshima'
+  ],
+  'China': [
+    'Shanghai', 'Beijing', 'Guangzhou', 'Shenzhen', 'Chengdu', 'Wuhan', 'Tianjin', 'Chongqing', 'Nanjing', 'Hangzhou',
+    'Suzhou', 'Dalian', 'Qingdao', 'Xiamen', 'Changsha', 'Nanning', 'Kunming', 'Xian', 'Wuxi', 'Fuzhou'
+  ],
+  'India': [
+    'Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata', 'Ahmedabad', 'Pune', 'Jaipur', 'Lucknow',
+    'Kanpur', 'Nagpur', 'Indore', 'Thane', 'Bhopal', 'Visakhapatnam', 'Pimpri-Chinchwad', 'Patna', 'Vadodara', 'Ghaziabad'
+  ],
+  'South Korea': [
+    'Seoul', 'Busan', 'Incheon', 'Daegu', 'Daejeon', 'Gwangju', 'Suwon', 'Ulsan', 'Changwon', 'Goyang',
+    'Ansan', 'Seongnam', 'Bucheon', 'Jeonju', 'Cheongju', 'Pohang', 'Gimhae', 'Dangjin', 'Guri', 'Yongin'
+  ],
+  'Australia': [
+    'Sydney', 'Melbourne', 'Brisbane', 'Perth', 'Adelaide', 'Gold Coast', 'Newcastle', 'Canberra', 'Wollongong', 'Logan City',
+    'Geelong', 'Hobart', 'Townsville', 'Cairns', 'Darwin', 'Toowoomba', 'Ballarat', 'Bendigo', 'Albury-Wodonga', 'Launceston'
+  ],
+  'New Zealand': [
+    'Auckland', 'Wellington', 'Christchurch', 'Hamilton', 'Tauranga', 'Napier-Hastings', 'Dunedin', 'Palmerston North', 'Nelson', 'Rotorua',
+    'New Plymouth', 'Whangarei', 'Invercargill', 'Gisborne', 'Whanganui', 'Timaru', 'Blenheim', 'Queenstown', 'Rangiora', 'Taupo'
+  ],
+  'Brazil': [
+    'São Paulo', 'Rio de Janeiro', 'Brasília', 'Salvador', 'Fortaleza', 'Belo Horizonte', 'Manaus', 'Curitiba', 'Recife', 'Porto Alegre',
+    'Goiânia', 'Belém', 'Guarulhos', 'Campinas', 'São Luís', 'São Gonçalo', 'Maceió', 'Duque de Caxias', 'Natal', 'Nova Iguaçu'
+  ],
+  'Chile': [
+    'Santiago', 'Valparaíso', 'Concepción', 'La Serena', 'Antofagasta', 'Iquique', 'Talca', 'Temuco', 'Arica', 'Coquimbo',
+    'Rancagua', 'Chillán', 'Osorno', 'Puerto Montt', 'Viña del Mar', 'Valdivia', 'Quilpué', 'San Bernardo', 'Puente Alto', 'Maipú'
+  ],
+  'South Africa': [
+    'Johannesburg', 'Cape Town', 'Durban', 'Pretoria', 'Port Elizabeth', 'Bloemfontein', 'East London', 'Pietermaritzburg', 'Kimberley', 'Polokwane',
+    'Benoni', 'Brakpan', 'Germiston', 'Krugersdorp', 'Randburg', 'Roodepoort', 'Soweto', 'Springs', 'Vereeniging', 'Welkom'
+  ],
+  'Morocco': [
+    'Casablanca', 'Rabat', 'Fes', 'Marrakech', 'Tangier', 'Agadir', 'Meknes', 'Oujda', 'Kenitra', 'Tetouan',
+    'Safi', 'Mohammedia', 'Khouribga', 'El Jadida', 'Beni Mellal', 'Nador', 'Taza', 'Larache', 'Settat', 'Khemisset'
+  ],
+  'UK': [
+    'London', 'Birmingham', 'Manchester', 'Leeds', 'Glasgow', 'Sheffield', 'Bradford', 'Liverpool', 'Edinburgh', 'Bristol',
+    'Cardiff', 'Newcastle upon Tyne', 'Leicester', 'Nottingham', 'Portsmouth', 'Brighton', 'Southampton', 'Swansea', 'Aberdeen', 'Plymouth'
+  ]
+}
+
+// Computed city options based on supplier's country
+const originCityOptions = computed(() => {
+  if (!supplierInfo.value || !supplierInfo.value.country) {
+    return []
+  }
+  return cityOptionsByCountry[supplierInfo.value.country] || []
+})
+
 function setMsg(text, kind = 'err') {
   message.value = text
   messageKind.value = kind
@@ -108,6 +205,90 @@ async function saveSupplierInfo() {
     setMsg('Failed to save supplier information')
   } finally {
     loading.value = false
+  }
+}
+
+// Transport recommendation methods
+async function getRecommendation() {
+  const origin = recommendationForm.value.origin.trim()
+  const destination = recommendationForm.value.destination.trim()
+  const distanceKm = Number(typeof recommendationForm.value.distanceKm === 'string' ? recommendationForm.value.distanceKm.trim() : recommendationForm.value.distanceKm)
+  const cargoWeightTons = Number(typeof recommendationForm.value.cargoWeightTons === 'string' ? recommendationForm.value.cargoWeightTons.trim() : recommendationForm.value.cargoWeightTons)
+
+  if (!origin || !destination) {
+    setMsg('Please enter origin and destination.')
+    return
+  }
+  if (!Number.isFinite(distanceKm) || distanceKm < 0) {
+    setMsg('Please enter a valid distance (km).')
+    return
+  }
+  if (!Number.isFinite(cargoWeightTons) || cargoWeightTons < 0) {
+    setMsg('Please enter a valid cargo weight (tons).')
+    return
+  }
+
+  recommendationLoading.value = true
+  message.value = ''
+  try {
+    // Get supplier ID if available
+    let supplierId = null
+    if (supplierInfo.value && supplierInfo.value.id) {
+      supplierId = supplierInfo.value.id
+    }
+
+    // Get smart recommendation (based on history)
+    let smartRes = await apiFetch(`/api/recommend/smart?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&cargo_weight_tons=${encodeURIComponent(cargoWeightTons)}${supplierId ? `&supplier_id=${encodeURIComponent(supplierId)}` : ''}`)
+
+    if (smartRes.ok) {
+      const smartData = await smartRes.json()
+      smartRecommendation.value = smartData
+    }
+
+    // For algorithm recommendation, we need to use a default current mode
+    // since the API requires it
+    const defaultMode = 'TRUCK'
+    let recRes = await apiFetch(`/api/recommend?current_mode=${encodeURIComponent(defaultMode)}&distance_km=${encodeURIComponent(distanceKm)}&cargo_weight_tons=${encodeURIComponent(cargoWeightTons)}${supplierId ? `&supplier_id=${encodeURIComponent(supplierId)}` : ''}`)
+
+    if (recRes.ok) {
+      const recData = await recRes.json()
+      recommendation.value = recData
+    }
+
+    // Calculate unified recommendation (similar to ShipmentTrackingView.vue)
+    if (recommendation.value && smartRecommendation.value) {
+      const algoEmission = recommendation.value.recommended_emission || 0
+      const smartEmission = smartRecommendation.value.current_emission || 0
+      const best = algoEmission < smartEmission ? recommendation.value : smartRecommendation.value
+      
+      unifiedRecommendation.value = {
+        transportMode: {
+          mode: best.best_mode,
+          displayName: best.best_mode
+        },
+        emission: best.recommended_emission || best.current_emission || 0,
+        savingsPercentage: best.saving ? parseFloat(best.saving.replace('%', '')) : 0
+      }
+    }
+
+    showRecommendation.value = true
+  } catch {
+    setMsg('Failed to get recommendations')
+  } finally {
+    recommendationLoading.value = false
+  }
+}
+
+function resetRecommendation() {
+  showRecommendation.value = false
+  recommendation.value = null
+  smartRecommendation.value = null
+  unifiedRecommendation.value = null
+  recommendationForm.value = {
+    origin: '',
+    destination: '',
+    distanceKm: '',
+    cargoWeightTons: ''
   }
 }
 
@@ -285,6 +466,83 @@ onMounted(async () => {
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- Transport Recommendation -->
+        <div class="transport-recommendation">
+          <h3 class="transport-recommendation__title">Transport Mode Recommendation</h3>
+          <div v-if="!showRecommendation" class="recommendation-form">
+            <form @submit.prevent="getRecommendation">
+              <div class="form-row">
+                <label class="form-label">
+                  Origin
+                  <select v-model="recommendationForm.origin" class="form-input">
+                    <option value="">Select a city</option>
+                    <option v-for="city in originCityOptions" :key="city" :value="city">
+                      {{ city }}, {{ supplierInfo?.country || '' }}
+                    </option>
+                  </select>
+                </label>
+              </div>
+              <div class="form-row">
+                <label class="form-label">
+                  Destination
+                  <input v-model="recommendationForm.destination" class="form-input" type="text" placeholder="e.g., Delhi, India" />
+                </label>
+              </div>
+              <div class="form-row">
+                <label class="form-label">
+                  Distance (km)
+                  <input v-model="recommendationForm.distanceKm" class="form-input" type="number" step="0.1" min="0" />
+                </label>
+              </div>
+              <div class="form-row">
+                <label class="form-label">
+                  Cargo Weight (tons)
+                  <input v-model="recommendationForm.cargoWeightTons" class="form-input" type="number" step="0.1" min="0" />
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn--primary" :disabled="recommendationLoading">
+                  {{ recommendationLoading ? 'Calculating…' : 'Get Recommendation' }}
+                </button>
+              </div>
+            </form>
+          </div>
+          <div v-else class="recommendation-results">
+            <h4 class="recommendation-results__title">Recommended Transport Modes</h4>
+            
+            <div v-if="unifiedRecommendation" class="recommendation-card recommendation-card--primary">
+              <h5 class="recommendation-card__title">Unified Recommendation</h5>
+              <div class="recommendation-card__content">
+                <p><strong>Recommended Mode:</strong> {{ unifiedRecommendation.transportMode?.displayName || unifiedRecommendation.transportMode?.mode || '—' }}</p>
+                <p><strong>Estimated CO2e:</strong> {{ unifiedRecommendation.emission ? unifiedRecommendation.emission.toFixed(2) : '—' }} kg</p>
+                <p v-if="unifiedRecommendation.savingsPercentage !== undefined"><strong>Potential Savings:</strong> {{ unifiedRecommendation.savingsPercentage.toFixed(2) }}%</p>
+              </div>
+            </div>
+            
+            <div v-if="recommendation" class="recommendation-card">
+              <h5 class="recommendation-card__title">Algorithm Recommendation</h5>
+              <div class="recommendation-card__content">
+                <p><strong>Recommended Mode:</strong> {{ recommendation.best_mode || '—' }}</p>
+                <p><strong>Estimated CO2e:</strong> {{ recommendation.recommended_emission ? recommendation.recommended_emission.toFixed(2) : '—' }} kg</p>
+                <p v-if="recommendation.saving"><strong>Potential Savings:</strong> {{ recommendation.saving }}</p>
+              </div>
+            </div>
+            
+            <div v-if="smartRecommendation" class="recommendation-card">
+              <h5 class="recommendation-card__title">Smart Recommendation</h5>
+              <div class="recommendation-card__content">
+                <p><strong>Recommended Mode:</strong> {{ smartRecommendation.best_mode || '—' }}</p>
+                <p><strong>Estimated CO2e:</strong> {{ smartRecommendation.current_emission ? smartRecommendation.current_emission.toFixed(2) : '—' }} kg</p>
+                <p v-if="smartRecommendation.saving"><strong>Potential Savings:</strong> {{ smartRecommendation.saving }}</p>
+              </div>
+            </div>
+            
+            <div class="recommendation-actions">
+              <button type="button" class="btn btn--ghost" @click="resetRecommendation">Get New Recommendation</button>
+            </div>
           </div>
         </div>
       </div>
@@ -578,5 +836,140 @@ onMounted(async () => {
 
 .btn--ghost:hover:not(:disabled) {
   background: #f4faf4;
+}
+
+/* Transport Recommendation Styles */
+.transport-recommendation {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.transport-recommendation__title {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.recommendation-form {
+  max-width: 600px;
+}
+
+.recommendation-form .form-row {
+  margin-bottom: 1rem;
+}
+
+.recommendation-form .form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #495057;
+}
+
+.recommendation-form .form-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.recommendation-form .form-input:focus {
+  outline: none;
+  border-color: #3cc260;
+  box-shadow: 0 0 0 0.2rem rgba(60, 194, 96, 0.25);
+}
+
+.recommendation-form .form-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.recommendation-results {
+  margin-top: 1rem;
+}
+
+.recommendation-results__title {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.recommendation-card {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background-color: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.recommendation-card--primary {
+  border-left: 4px solid #3cc260;
+  background-color: #f0f9f4;
+}
+
+.recommendation-card__title {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.recommendation-card__content p {
+  margin: 0.5rem 0;
+  color: #495057;
+}
+
+.recommendation-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.btn--primary {
+  background-color: #3cc260;
+  color: #ffffff;
+}
+
+.btn--primary:hover {
+  background-color: #34a853;
+}
+
+.btn--primary:disabled {
+  background-color: #a8dadc;
+  cursor: not-allowed;
+}
+
+.btn--ghost {
+  background-color: transparent;
+  color: #3cc260;
+  border: 1px solid #3cc260;
+}
+
+.btn--ghost:hover {
+  background-color: #f0f9f4;
 }
 </style>
