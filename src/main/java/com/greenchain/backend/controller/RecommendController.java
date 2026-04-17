@@ -20,8 +20,9 @@ public class RecommendController {
     public RecommendResponse recommend(
             @RequestParam("current_mode") String currentMode,
             @RequestParam(value = "distance_km", required = false) Double distanceKm,
-            @RequestParam(value = "cargo_weight_tons", required = false) Double cargoWeightTons) {
-        return carbonLogicService.recommendBestMode(currentMode, distanceKm, cargoWeightTons);
+            @RequestParam(value = "cargo_weight_tons", required = false) Double cargoWeightTons,
+            @RequestParam(value = "supplier_id", required = false) Long supplierId) {
+        return carbonLogicService.recommendBestMode(currentMode, distanceKm, cargoWeightTons, supplierId);
     }
 
     @GetMapping("/api/recommend/history-analysis")
@@ -33,7 +34,8 @@ public class RecommendController {
     public RecommendResponse smartRecommend(
             @RequestParam(value = "origin", required = false) String origin,
             @RequestParam(value = "destination", required = false) String destination,
-            @RequestParam(value = "cargo_weight_tons", required = false) Double cargoWeightTons) {
-        return carbonLogicService.recommendBestModeFromHistory(origin, destination, cargoWeightTons);
+            @RequestParam(value = "cargo_weight_tons", required = false) Double cargoWeightTons,
+            @RequestParam(value = "supplier_id", required = false) Long supplierId) {
+        return carbonLogicService.recommendBestModeFromHistory(origin, destination, cargoWeightTons, supplierId);
     }
 }

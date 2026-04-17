@@ -29,6 +29,7 @@ const form = ref({
 const showRecommendation = ref(false)
 const recommendation = ref(null)
 const smartRecommendation = ref(null)
+const unifiedRecommendation = ref(null)
 const recommendationLoading = ref(false)
 
 function setMsg(text, kind = 'err') {
@@ -176,6 +177,7 @@ function closeDialog() {
   showRecommendation.value = false
   recommendation.value = null
   smartRecommendation.value = null
+  unifiedRecommendation.value = null
 }
 
 async function getRecommendation() {
@@ -206,7 +208,8 @@ async function getRecommendation() {
     let url = `/api/recommend?current_mode=${encodeURIComponent(selectedMode.mode)}`
     if (distance) url += `&distance_km=${encodeURIComponent(distance)}`
     if (weight) url += `&cargo_weight_tons=${encodeURIComponent(weight)}`
-    
+    if (form.value.supplierId) url += `&supplier_id=${encodeURIComponent(form.value.supplierId)}`
+
     const res = await apiFetch(url)
     const text = await res.text()
     
@@ -246,6 +249,7 @@ async function getSmartRecommendation() {
     if (origin) url += `origin=${encodeURIComponent(origin)}&`
     if (destination) url += `destination=${encodeURIComponent(destination)}&`
     if (weight) url += `cargo_weight_tons=${encodeURIComponent(weight)}`
+    if (form.value.supplierId) url += `&supplier_id=${encodeURIComponent(form.value.supplierId)}`
 
     const res = await apiFetch(url)
     const text = await res.text()
@@ -260,6 +264,90 @@ async function getSmartRecommendation() {
     } catch {
       setMsg('Failed to parse smart recommendation result.')
     }
+  } catch {
+    setMsg('Cannot connect to the server. Please check if the backend is running.')
+  } finally {
+    recommendationLoading.value = false
+  }
+}
+
+async function getUnifiedRecommendation() {
+  const origin = form.value.origin.trim()
+  const destination = form.value.destination.trim()
+  const weight = form.value.cargoWeightTons.trim()
+  const mid = form.value.transportModeId.trim()
+  
+  if (!mid) {
+    setMsg('Please select the current transport mode first.')
+    return
+  }
+  
+  const selectedMode = transportModes.value.find(m => String(m.id) === mid)
+  if (!selectedMode || !selectedMode.mode) {
+    setMsg('Unable to get current transport mode information.')
+    return
+  }
+
+  recommendationLoading.value = true
+  unifiedRecommendation.value = null
+  showRecommendation.value = false
+  recommendation.value = null
+  smartRecommendation.value = null
+  message.value = ''
+
+  try {
+    // Get distance and weight from form
+    const distance = form.value.distanceKm.trim()
+    const weight = form.value.cargoWeightTons.trim()
+    
+    // Parallel requests
+    const [recommendRes, smartRecommendRes] = await Promise.all([
+      // Regular recommendation
+      apiFetch(`/api/recommend?current_mode=${encodeURIComponent(selectedMode.mode)}${distance ? `&distance_km=${encodeURIComponent(distance)}` : ''}${weight ? `&cargo_weight_tons=${encodeURIComponent(weight)}` : ''}${form.value.supplierId ? `&supplier_id=${encodeURIComponent(form.value.supplierId)}` : ''}`),
+      // Smart recommendation
+      apiFetch(`/api/recommend/smart?${origin ? `origin=${encodeURIComponent(origin)}&` : ''}${destination ? `destination=${encodeURIComponent(destination)}&` : ''}${weight ? `cargo_weight_tons=${encodeURIComponent(weight)}` : ''}${form.value.supplierId ? `&supplier_id=${encodeURIComponent(form.value.supplierId)}` : ''}`)
+    ])
+
+    const [recommendText, smartRecommendText] = await Promise.all([
+      recommendRes.text(),
+      smartRecommendRes.text()
+    ])
+
+    let recommendData = null
+    let smartRecommendData = null
+
+    if (recommendRes.ok) {
+      try {
+        recommendData = JSON.parse(recommendText)
+      } catch {
+        // Ignore parsing error
+      }
+    }
+
+    if (smartRecommendRes.ok) {
+      try {
+        smartRecommendData = JSON.parse(smartRecommendText)
+      } catch {
+        // Ignore parsing error
+      }
+    }
+
+    // Combine results
+    unifiedRecommendation.value = {
+      algorithm: recommendData,
+      smart: smartRecommendData,
+      // Choose the better recommendation based on emission
+      best: (() => {
+        if (recommendData && smartRecommendData) {
+          const algoEmission = recommendData.recommended_emission || 0
+          const smartEmission = smartRecommendData.current_emission || 0
+          return algoEmission < smartEmission ? recommendData : smartRecommendData
+        }
+        return recommendData || smartRecommendData
+      })()
+    }
+
+    showRecommendation.value = true
   } catch {
     setMsg('Cannot connect to the server. Please check if the backend is running.')
   } finally {
@@ -410,7 +498,8 @@ watch(
         <table class="data-table">
           <thead>
             <tr>
-              <th scope="col">ID</th>
+              <th scope="col">#</th>
+              <th scope="col" class="col-id">ID</th>
               <th scope="col">Supplier</th>
               <th scope="col">Mode</th>
               <th scope="col">Origin</th>
@@ -424,12 +513,13 @@ watch(
           </thead>
           <tbody>
             <tr v-if="!loading && shipments.length === 0">
-              <td colspan="10" class="empty-cell">
+              <td colspan="11" class="empty-cell">
                 No shipments yet. Please add suppliers first, then click "New shipment" to create one.
               </td>
             </tr>
-            <tr v-for="row in shipments" :key="row.id">
-              <td>{{ row.id }}</td>
+            <tr v-for="(row, index) in shipments" :key="row.id">
+              <td>{{ index + 1 }}</td>
+              <td class="col-id">{{ row.id }}</td>
               <td>{{ supplierLabel(row) }}</td>
               <td>{{ modeLabel(row) }}</td>
               <td>{{ row.origin || '—' }}</td>
@@ -466,73 +556,136 @@ watch(
             </label>
             <label class="field">
               <span class="field__label">Transport mode *</span>
-              <div style="display: flex; gap: 0.5rem;">
-                <select v-model="form.transportModeId" class="field__input" required style="flex: 1;">
-                  <option disabled value="">Select mode</option>
-                  <option v-for="m in transportModes" :key="m.id" :value="String(m.id)">
-                    {{ m.displayName || m.mode || `ID ${m.id}` }}
-                  </option>
-                </select>
-                <button 
-                  type="button" 
-                  class="btn btn--ghost" 
-                  @click="getRecommendation"
-                  :disabled="!form.transportModeId || recommendationLoading"
-                  style="white-space: nowrap;"
-                >
-                  {{ recommendationLoading ? 'Recommending...' : 'Recommend' }}
-                </button>
-                <button 
-                  type="button" 
-                  class="btn btn--ghost" 
-                  @click="getSmartRecommendation"
-                  :disabled="recommendationLoading"
-                  style="white-space: nowrap;"
-                >
-                  {{ recommendationLoading ? 'Loading...' : 'Smart' }}
-                </button>
+              <select v-model="form.transportModeId" class="field__input" required>
+                <option disabled value="">Select mode</option>
+                <option v-for="m in transportModes" :key="m.id" :value="String(m.id)">
+                  {{ m.displayName || m.mode || `ID ${m.id}` }}
+                </option>
+              </select>
+            </label>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button
+                type="button"
+                class="btn btn--ghost"
+                @click="getRecommendation"
+                :disabled="!form.transportModeId || recommendationLoading"
+                style="flex: 1;"
+              >
+                {{ recommendationLoading ? 'Recommending...' : 'Recommend' }}
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost"
+                @click="getSmartRecommendation"
+                :disabled="recommendationLoading"
+                style="flex: 1;"
+              >
+                {{ recommendationLoading ? 'Loading...' : 'Smart' }}
+              </button>
+              <button
+                type="button"
+                class="btn btn--primary"
+                @click="getUnifiedRecommendation"
+                :disabled="!form.transportModeId || recommendationLoading"
+                style="flex: 1;"
+              >
+                {{ recommendationLoading ? 'Analyzing...' : 'Unified' }}
+              </button>
+            </div>
+            
+            <div v-if="showRecommendation && recommendation" style="margin-top: 0.5rem; padding: 0.75rem; background: #f0f8f0; border-radius: 6px; border: 1px solid #d0e8d0;">
+              <h4 style="margin: 0 0 0.5rem; color: #3d5340; font-size: 0.9rem;">Recommendation Result</h4>
+              <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                <strong>Recommended transport mode:</strong> {{ recommendation.best_mode || 'No recommendation' }}
+              </p>
+              <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                <strong>Estimated carbon reduction:</strong> {{ recommendation.saving || '0%' }}
+              </p>
+              <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                <strong>Reduction amount:</strong> {{ recommendation.saving_amount ? recommendation.saving_amount.toFixed(2) : '0' }} {{ recommendation.saving_amount_unit || 'kg CO2e' }}
+              </p>
+              <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                <strong>Current emission:</strong> {{ recommendation.current_emission ? recommendation.current_emission.toFixed(2) : '0' }} kg CO2e
+              </p>
+              <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                <strong>Recommended emission:</strong> {{ recommendation.recommended_emission ? recommendation.recommended_emission.toFixed(2) : '0' }} kg CO2e
+              </p>
+              <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #d0e8d0;">
+                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                  <strong>Time factor:</strong> {{ recommendation.time_factor ? (recommendation.time_factor < 1 ? 'Faster' : recommendation.time_factor > 1 ? 'Slower' : 'Same') : 'N/A' }}
+                </p>
+                <p style="margin: 0; font-size: 0.85rem;">
+                  <strong>Cost factor:</strong> {{ recommendation.cost_factor ? (recommendation.cost_factor < 1 ? 'Cheaper' : recommendation.cost_factor > 1 ? 'More expensive' : 'Same') : 'N/A' }}
+                </p>
               </div>
-              <!-- Recommendation result display -->
-              <div v-if="showRecommendation && recommendation" style="margin-top: 0.5rem; padding: 0.75rem; background: #f0f8f0; border-radius: 6px; border: 1px solid #d0e8d0;">
-                <h4 style="margin: 0 0 0.5rem; color: #3d5340; font-size: 0.9rem;">Recommendation Result</h4>
+              <div style="margin-top: 0.75rem; padding: 0.5rem; background: #f8fff8; border-radius: 4px; font-size: 0.8rem;">
+                <h5 style="margin: 0 0 0.3rem; color: #2d4a2d; font-size: 0.85rem;">Calculation Formula</h5>
+                <p style="margin: 0 0 0.2rem;">Total Emission = Transport Emission + Production Emission</p>
+                <p style="margin: 0 0 0.2rem;">Transport Emission = Distance(km) × Transport Factor × Weight(tons)</p>
+                <p style="margin: 0;">Production Emission = Weight(tons) × Supplier Factor</p>
+              </div>
+            </div>
+            
+            <div v-if="smartRecommendation" style="margin-top: 0.5rem; padding: 0.75rem; background: #fff8f0; border-radius: 6px; border: 1px solid #ffe0b2;">
+              <h4 style="margin: 0 0 0.5rem; color: #e65100; font-size: 0.9rem;">Smart Recommendation (Based on History)</h4>
+              <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                <strong>Recommended transport mode:</strong> {{ smartRecommendation.best_mode || 'N/A' }}
+              </p>
+              <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
+                <strong>Based on:</strong> {{ smartRecommendation.saving || 'Historical data' }}
+              </p>
+              <p style="margin: 0; font-size: 0.85rem;">
+                <strong>Estimated emission:</strong> {{ smartRecommendation.current_emission ? smartRecommendation.current_emission.toFixed(2) : '0' }} {{ smartRecommendation.saving_amount_unit || 'kg CO2e' }}
+              </p>
+            </div>
+            
+            <div v-if="showRecommendation && unifiedRecommendation" style="margin-top: 0.5rem; padding: 0.75rem; background: #f0f5ff; border-radius: 6px; border: 1px solid #c3d4ff;">
+              <h4 style="margin: 0 0 0.5rem; color: #1e40af; font-size: 0.9rem;">Unified Recommendation</h4>
+              
+              <div v-if="unifiedRecommendation.best" style="margin-bottom: 0.75rem;">
                 <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                  <strong>Recommended transport mode:</strong> {{ recommendation.best_mode || 'No recommendation' }}
+                  <strong>Best Recommendation:</strong> {{ unifiedRecommendation.best.best_mode || 'N/A' }}
                 </p>
                 <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                  <strong>Estimated carbon reduction:</strong> {{ recommendation.saving || '0%' }}
+                  <strong>Estimated emission:</strong> {{ unifiedRecommendation.best.recommended_emission || unifiedRecommendation.best.current_emission ? (unifiedRecommendation.best.recommended_emission || unifiedRecommendation.best.current_emission).toFixed(2) : '0' }} kg CO2e
                 </p>
-                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                  <strong>Reduction amount:</strong> {{ recommendation.saving_amount ? recommendation.saving_amount.toFixed(2) : '0' }} {{ recommendation.saving_amount_unit || 'kg CO2e' }}
-                </p>
-                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                  <strong>Current emission:</strong> {{ recommendation.current_emission ? recommendation.current_emission.toFixed(2) : '0' }} kg CO2e
-                </p>
-                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                  <strong>Recommended emission:</strong> {{ recommendation.recommended_emission ? recommendation.recommended_emission.toFixed(2) : '0' }} kg CO2e
-                </p>
-                <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #d0e8d0;">
-                  <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                    <strong>Time factor:</strong> {{ recommendation.time_factor ? (recommendation.time_factor < 1 ? 'Faster' : recommendation.time_factor > 1 ? 'Slower' : 'Same') : 'N/A' }}
+              </div>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem;">
+                <div v-if="unifiedRecommendation.algorithm" style="padding: 0.5rem; background: #f8fff8; border-radius: 4px; border: 1px solid #d0e8d0;">
+                  <h5 style="margin: 0 0 0.3rem; color: #2d4a2d; font-size: 0.8rem;">Algorithm-based</h5>
+                  <p style="margin: 0 0 0.2rem; font-size: 0.75rem;">
+                    <strong>Mode:</strong> {{ unifiedRecommendation.algorithm.best_mode || 'N/A' }}
                   </p>
-                  <p style="margin: 0; font-size: 0.85rem;">
-                    <strong>Cost factor:</strong> {{ recommendation.cost_factor ? (recommendation.cost_factor < 1 ? 'Cheaper' : recommendation.cost_factor > 1 ? 'More expensive' : 'Same') : 'N/A' }}
+                  <p style="margin: 0; font-size: 0.75rem;">
+                    <strong>Emission:</strong> {{ unifiedRecommendation.algorithm.recommended_emission ? unifiedRecommendation.algorithm.recommended_emission.toFixed(2) : '0' }} kg
+                  </p>
+                </div>
+                
+                <div v-if="unifiedRecommendation.smart" style="padding: 0.5rem; background: #fff8f0; border-radius: 4px; border: 1px solid #ffe0b2;">
+                  <h5 style="margin: 0 0 0.3rem; color: #e65100; font-size: 0.8rem;">History-based</h5>
+                  <p style="margin: 0 0 0.2rem; font-size: 0.75rem;">
+                    <strong>Mode:</strong> {{ unifiedRecommendation.smart.best_mode || 'N/A' }}
+                  </p>
+                  <p style="margin: 0; font-size: 0.75rem;">
+                    <strong>Emission:</strong> {{ unifiedRecommendation.smart.current_emission ? unifiedRecommendation.smart.current_emission.toFixed(2) : '0' }} kg
                   </p>
                 </div>
               </div>
-              <!-- Smart Recommendation result display -->
-              <div v-if="smartRecommendation" style="margin-top: 0.5rem; padding: 0.75rem; background: #fff8f0; border-radius: 6px; border: 1px solid #ffe0b2;">
-                <h4 style="margin: 0 0 0.5rem; color: #e65100; font-size: 0.9rem;">Smart Recommendation (Based on History)</h4>
-                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                  <strong>Recommended transport mode:</strong> {{ smartRecommendation.best_mode || 'N/A' }}
-                </p>
-                <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                  <strong>Based on:</strong> {{ smartRecommendation.saving || 'Historical data' }}
-                </p>
-                <p style="margin: 0; font-size: 0.85rem;">
-                  <strong>Estimated emission:</strong> {{ smartRecommendation.current_emission ? smartRecommendation.current_emission.toFixed(2) : '0' }} {{ smartRecommendation.saving_amount_unit || 'kg CO2e' }}
-                </p>
+              
+              <div style="margin-top: 0.75rem; padding: 0.5rem; background: #f8faff; border-radius: 4px; font-size: 0.8rem;">
+                <h5 style="margin: 0 0 0.3rem; color: #1e40af; font-size: 0.85rem;">Calculation Details</h5>
+                <div v-if="form.distanceKm && form.cargoWeightTons">
+                  <p style="margin: 0 0 0.2rem;"><strong>Formula:</strong> Total = Transport + Production</p>
+                  <p style="margin: 0 0 0.2rem;"><strong>Values:</strong></p>
+                  <p style="margin: 0 0 0.1rem; padding-left: 1rem;">Distance: {{ form.distanceKm }} km</p>
+                  <p style="margin: 0 0 0.1rem; padding-left: 1rem;">Weight: {{ form.cargoWeightTons }} tons</p>
+                  <p style="margin: 0 0 0.1rem; padding-left: 1rem;">Supplier Factor: {{ suppliers.find(s => String(s.id) === form.supplierId)?.emissionFactorPerUnit || 0 }}</p>
+                  <p style="margin: 0; font-style: italic; color: #666; font-size: 0.75rem;">* Emission factors vary by transport mode and supplier</p>
+                </div>
               </div>
-            </label>
+            </div>
+            
             <label class="field">
               <span class="field__label">Origin</span>
               <input v-model="form.origin" class="field__input" type="text" autocomplete="off" />
@@ -700,6 +853,10 @@ watch(
 .col-actions {
   white-space: nowrap;
   width: 1%;
+}
+
+.col-id {
+  display: none;
 }
 
 .link-btn {

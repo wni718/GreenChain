@@ -236,15 +236,15 @@ async function exportCsv() {
 
     lines.push('## Shipments')
     lines.push(
-      'id,supplierId,supplierName,transportMode,distanceKm,cargoWeightTons,origin,destination,shipmentDate,calculatedCarbonEmission',
+      'sequence,supplierId,supplierName,transportMode,distanceKm,cargoWeightTons,origin,destination,shipmentDate,calculatedCarbonEmission',
     )
-    for (const sh of shipments) {
+    for (const [index, sh] of shipments.entries()) {
       const sid = sh.supplier?.id
       const sname = sh.supplier?.name
       const mode = sh.transportMode?.displayName || sh.transportMode?.mode || ''
       lines.push(
         [
-          csvEscape(sh.id),
+          csvEscape(index + 1),
           csvEscape(sid),
           csvEscape(sname),
           csvEscape(mode),
