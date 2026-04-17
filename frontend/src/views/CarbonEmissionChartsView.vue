@@ -3,6 +3,11 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { useAuth } from '../composables/useAuth'
 import { formatErrorBody } from '../utils/apiError'
+import {
+  getEmissionsByDateOption,
+  getEmissionsByTransportModeOption,
+  getTransportModeFactorsOption,
+} from '../utils/chartConfig'
 
 const { apiAuthHeader, currentUser } = useAuth()
 
@@ -38,227 +43,21 @@ function disposeCharts() {
   transportModeChart = null
 }
 
-const emptyLineGraphic = {
-  type: 'text',
-  left: 'center',
-  top: 'center',
-  style: {
-    text:
-      '暂无按日数据。请在 Shipment Tracking 新建货运；\n有「发货日期」则按该日期汇总，否则按保存当天汇总。',
-    fontSize: 13,
-    fill: '#6b7d6b',
-    lineHeight: 20,
-  },
-}
-
-const emptyPieGraphic = {
-  type: 'text',
-  left: 'center',
-  top: 'center',
-  style: {
-    text: '暂无运输方式分布。保存带运输方式的货运后将显示各方式排放量占比。',
-    fontSize: 13,
-    fill: '#6b7d6b',
-    lineHeight: 20,
-  },
-}
-
-const emptyTransportModeGraphic = {
-  type: 'text',
-  left: 'center',
-  top: 'center',
-  style: {
-    text: '暂无运输方式数据。系统将自动加载所有运输方式的碳排放因子对比。',
-    fontSize: 13,
-    fill: '#6b7d6b',
-    lineHeight: 20,
-  },
-}
-
 function applyChartOptions() {
   const s = summary.value
   if (!s || !lineEl.value || !pieEl.value || !transportModeEl.value) return
 
-  // Sort emissions by date in ascending order (oldest to newest)
-  const sortedEmissions = [...(s.emissionsByShipmentDate || [])].sort((a, b) => {
-    return new Date(a.date) - new Date(b.date)
-  })
-  
-  const dates = sortedEmissions.map((r) => r.date)
-  const seriesLine = sortedEmissions.map((r) => Number(r.emissionsKg).toFixed(2))
-
   if (!lineChart) lineChart = echarts.init(lineEl.value)
-
-  if (dates.length === 0) {
-    lineChart.setOption(
-      {
-        color: ['#528951'],
-        title: {
-          text: 'Emissions by shipment date',
-          left: 0,
-          textStyle: { fontSize: 14, color: '#3d5340' },
-        },
-        graphic: [emptyLineGraphic],
-        tooltip: { show: false },
-        grid: { left: 12, right: 20, top: 52, bottom: 36, containLabel: true },
-        xAxis: { type: 'category', data: [], show: false },
-        yAxis: { type: 'value', show: false },
-        series: [],
-      },
-      { notMerge: true },
-    )
-  } else {
-    lineChart.setOption(
-      {
-        graphic: [],
-        color: ['#528951'],
-        title: {
-          text: 'Emissions by shipment date',
-          left: 0,
-          textStyle: { fontSize: 14, color: '#3d5340' },
-        },
-        tooltip: { trigger: 'axis', show: true },
-        grid: { left: 12, right: 20, top: 52, bottom: 36, containLabel: true },
-        xAxis: {
-          type: 'category',
-          data: dates,
-          show: true,
-          axisLabel: { rotate: dates.length > 8 ? 35 : 0 },
-        },
-        yAxis: {
-          type: 'value',
-          name: 'kg CO2e',
-          show: true,
-          nameGap: 12,
-          axisLabel: { margin: 8 },
-        },
-        series: [
-          { type: 'line', smooth: true, data: seriesLine, areaStyle: { opacity: 0.12 } },
-        ],
-      },
-      { notMerge: true },
-    )
-  }
-
-  const pieDataRaw = (s.emissionsByTransportMode || []).map((r) => ({
-    name: r.transportMode,
-    value: Number(Number(r.emissionsKg).toFixed(2)) || 0,
-  }))
-  const pieData = pieDataRaw.filter((d) => d.value > 0)
+  lineChart.setOption(getEmissionsByDateOption(s), { notMerge: true })
 
   if (!pieChart) pieChart = echarts.init(pieEl.value)
+  pieChart.setOption(getEmissionsByTransportModeOption(s), { notMerge: true })
 
-  if (pieData.length === 0) {
-    pieChart.setOption(
-      {
-        color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
-        title: {
-          text: 'Share by transport mode',
-          left: 0,
-          textStyle: { fontSize: 14, color: '#3d5340' },
-        },
-        graphic: [emptyPieGraphic],
-        tooltip: { show: false },
-        series: [{ type: 'pie', radius: ['36%', '62%'], data: [] }],
-      },
-      { notMerge: true },
-    )
-  } else {
-    pieChart.setOption(
-      {
-        graphic: [],
-        color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
-        title: {
-          text: 'Share by transport mode',
-          left: 0,
-          textStyle: { fontSize: 14, color: '#3d5340' },
-        },
-        tooltip: { trigger: 'item', formatter: '{b}: {c} kg ({d}%)', show: true },
-        series: [
-          {
-            type: 'pie',
-            radius: ['36%', '62%'],
-            avoidLabelOverlap: true,
-            label: { color: '#2d4a2c' },
-            data: pieData,
-          },
-        ],
-      },
-      { notMerge: true },
-    )
-  }
+  if (!transportModeChart) transportModeChart = echarts.init(transportModeEl.value)
+  transportModeChart.setOption(getTransportModeFactorsOption(transportModes.value), { notMerge: true })
 
   lineChart.resize()
   pieChart.resize()
-  
-  // Transport mode emission factor comparison chart
-  if (!transportModeChart) transportModeChart = echarts.init(transportModeEl.value)
-  
-  if (transportModes.value.length === 0) {
-    transportModeChart.setOption(
-      {
-        color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
-        title: {
-          text: 'Transport Mode Emission Factors',
-          left: 0,
-          textStyle: { fontSize: 14, color: '#3d5340' },
-        },
-        graphic: [emptyTransportModeGraphic],
-        tooltip: { show: false },
-        xAxis: { type: 'category', data: [], show: false },
-        yAxis: { type: 'value', show: false },
-        series: [],
-      },
-      { notMerge: true },
-    )
-  } else {
-    const transportModeData = transportModes.value.map(mode => ({
-      name: mode.displayName || mode.mode,
-      value: mode.emissionFactorPerKmPerTon || 0
-    }))
-    
-    transportModeChart.setOption(
-      {
-        graphic: [],
-        color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
-        title: {
-          text: 'Transport Mode Emission Factors',
-          left: 0,
-          textStyle: { fontSize: 14, color: '#3d5340' },
-        },
-        tooltip: {
-          trigger: 'axis',
-          formatter: '{b}: {c} kg CO2e/km/ton',
-          show: true
-        },
-        grid: { left: 12, right: 20, top: 52, bottom: 36, containLabel: true },
-        xAxis: {
-          type: 'category',
-          data: transportModeData.map(d => d.name),
-          show: true,
-          axisLabel: { rotate: transportModeData.length > 4 ? 35 : 0 }
-        },
-        yAxis: {
-          type: 'value',
-          name: 'kg CO2e/km/ton',
-          show: true,
-          nameGap: 12,
-          axisLabel: { margin: 20 }
-        },
-        series: [
-          {
-            type: 'bar',
-            data: transportModeData.map(d => d.value),
-            itemStyle: {
-              borderRadius: [4, 4, 0, 0]
-            }
-          }
-        ],
-      },
-      { notMerge: true },
-    )
-  }
-  
   transportModeChart.resize()
 }
 

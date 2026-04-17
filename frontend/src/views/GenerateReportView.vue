@@ -5,12 +5,23 @@ import { formatErrorBody } from '../utils/apiError'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import * as echarts from 'echarts'
+import {
+  getCarbonEmissionsOption,
+  getSupplierDistributionOption,
+  getSupplyChainMetricsOption,
+  getCarbonEmissionsTrendOption,
+  getEmissionsByDateOption,
+  getEmissionsByTransportModeOption,
+  getTransportModeFactorsOption,
+} from '../utils/chartConfig'
 
 const { apiAuthHeader, currentUser } = useAuth()
 
 const isLoggedIn = computed(() => Boolean(currentUser.value?.username))
 
 const loading = ref(false)
+const csvLoading = ref(false)
+const pdfLoading = ref(false)
 const message = ref('')
 const messageKind = ref('err')
 
@@ -19,8 +30,21 @@ function setMsg(text, kind = 'err') {
   messageKind.value = kind
 }
 
+async function renderChartToImage(container, ChartClass, option) {
+  const el = document.createElement('div')
+  el.style.cssText = 'width: 700px; height: 300px;'
+  container.appendChild(el)
+  const chart = ChartClass.init(el)
+  chart.setOption(option)
+  chart.resize()
+  await new Promise(resolve => setTimeout(resolve, 500))
+  const img = chart.getDataURL({ type: 'png', pixelRatio: 2 })
+  chart.dispose()
+  container.removeChild(el)
+  return img
+}
+
 async function generateChartsHtml(summary, suppliers, shipments, transportModes) {
-  // Create a temporary container for charts
   const chartContainer = document.createElement('div')
   chartContainer.style.cssText = `
     position: fixed;
@@ -34,559 +58,48 @@ async function generateChartsHtml(summary, suppliers, shipments, transportModes)
   `
   document.body.appendChild(chartContainer)
 
-  // Create chart elements
-  const emissionsChartEl = document.createElement('div')
-  emissionsChartEl.style.cssText = `width: 700px; height: 300px;`
-  
-  const supplierChartEl = document.createElement('div')
-  supplierChartEl.style.cssText = `width: 700px; height: 300px;`
-  
-  const shipmentChartEl = document.createElement('div')
-  shipmentChartEl.style.cssText = `width: 700px; height: 300px;`
-  
-  const trendChartEl = document.createElement('div')
-  trendChartEl.style.cssText = `width: 700px; height: 300px;`
-  
-  const emissionsByDateChartEl = document.createElement('div')
-  emissionsByDateChartEl.style.cssText = `width: 700px; height: 300px;`
-  
-  const emissionsByTransportModeChartEl = document.createElement('div')
-  emissionsByTransportModeChartEl.style.cssText = `width: 700px; height: 300px;`
-
-  const transportModeFactorChartEl = document.createElement('div')
-  transportModeFactorChartEl.style.cssText = `width: 700px; height: 300px;`
-
-  // Generate charts one by one
   const chartImages = []
 
-  // Carbon Emissions Chart
-  chartContainer.appendChild(emissionsChartEl)
-  const emissionsChart = echarts.init(emissionsChartEl)
-  emissionsChart.setOption({
-    title: {
-      text: 'Carbon Emissions',
-      left: 'center'
-    },
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      }
-    },
-    legend: {
-      data: ['Total Emissions', 'Avoided Emissions'],
-      bottom: 10
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '15%',
-      top: '15%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: ['Emissions (kg CO2e)']
-    },
-    yAxis: {
-      type: 'value'
-    },
-    series: [
-      {
-        name: 'Total Emissions',
-        type: 'bar',
-        data: [Number(Number(summary.totalEmissionsKg || 0).toFixed(2))],
-        itemStyle: {
-          color: '#ff7875'
-        }
-      },
-      {
-        name: 'Avoided Emissions',
-        type: 'bar',
-        data: [Number(Number(summary.estimatedAvoidedEmissionsKg || 0).toFixed(2))],
-        itemStyle: {
-          color: '#73d13d'
-        }
-      }
-    ]
-  })
-  emissionsChart.resize()
-  await new Promise(resolve => setTimeout(resolve, 500))
-  chartImages.push({
-    title: 'Carbon Emissions',
-    img: emissionsChart.getDataURL({ type: 'png', pixelRatio: 2 })
-  })
-  emissionsChart.dispose()
-  chartContainer.removeChild(emissionsChartEl)
-
-  // Supplier Distribution Chart
-  chartContainer.appendChild(supplierChartEl)
-  const supplierChart = echarts.init(supplierChartEl)
-  supplierChart.setOption({
-    title: {
-      text: 'Supplier Distribution',
-      left: 'center'
-    },
-    tooltip: {
-      trigger: 'item'
-    },
-    legend: {
-      orient: 'vertical',
-      left: 'left',
-      bottom: 10
-    },
-    series: [
-      {
-        name: 'Suppliers',
-        type: 'pie',
-        radius: '60%',
-        center: ['50%', '50%'],
-        data: [
-          {
-            value: summary.certifiedSupplierCount || 0,
-            name: 'Certified'
-          },
-          {
-            value: (summary.registeredSupplierCount || 0) - (summary.certifiedSupplierCount || 0),
-            name: 'Non-Certified'
-          }
-        ],
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.5)'
-          }
-        }
-      }
-    ]
-  })
-  supplierChart.resize()
-  await new Promise(resolve => setTimeout(resolve, 500))
-  chartImages.push({
-    title: 'Supplier Distribution',
-    img: supplierChart.getDataURL({ type: 'png', pixelRatio: 2 })
-  })
-  supplierChart.dispose()
-  chartContainer.removeChild(supplierChartEl)
-
-  // Shipment & Supply Chain Chart
-  chartContainer.appendChild(shipmentChartEl)
-  const shipmentChart = echarts.init(shipmentChartEl)
-  shipmentChart.setOption({
-    title: {
-      text: 'Supply Chain Metrics',
-      left: 'center'
-    },
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      }
-    },
-    legend: {
-      data: ['Shipments', 'Enterprises'],
-      bottom: 10
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '15%',
-      top: '15%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: ['Count']
-    },
-    yAxis: {
-      type: 'value'
-    },
-    series: [
-      {
-        name: 'Shipments',
-        type: 'bar',
-        data: [summary.shipmentCount || 0],
-        itemStyle: {
-          color: '#409eff'
-        }
-      },
-      {
-        name: 'Enterprises',
-        type: 'bar',
-        data: [summary.enterprisesInSupplyChain || 0],
-        itemStyle: {
-          color: '#9254de'
-        }
-      }
-    ]
-  })
-  shipmentChart.resize()
-  await new Promise(resolve => setTimeout(resolve, 500))
-  chartImages.push({
-    title: 'Supply Chain Metrics',
-    img: shipmentChart.getDataURL({ type: 'png', pixelRatio: 2 })
-  })
-  shipmentChart.dispose()
-  chartContainer.removeChild(shipmentChartEl)
-
-  // Carbon Emissions Trend Chart - All Years
-  chartContainer.appendChild(trendChartEl)
-  const trendChart = echarts.init(trendChartEl)
-  // Use a different color for All Years chart
-  const allYearsColor = '#000000'
-  trendChart.setOption({
-    title: {
-      text: 'Carbon Emissions Trend (All Years)',
-      left: 'center'
-    },
-    tooltip: {
-      trigger: 'axis'
-    },
-    legend: {
-      data: ['Monthly Emissions'],
-      bottom: 10
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '15%',
-      top: '15%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      boundaryGap: false,
-      data: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    },
-    yAxis: {
-      type: 'value',
-      name: 'kg CO2e'
-    },
-    series: [
-      {
-        name: 'Monthly Emissions',
-        type: 'line',
-        stack: 'Total',
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: allYearsColor + '80' }, // 50% opacity
-            { offset: 1, color: allYearsColor + '10' }  // 10% opacity
-          ])
-        },
-        data: summary.monthlyEmissions ? summary.monthlyEmissions.map(val => Number(Number(val).toFixed(2))) : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        lineStyle: {
-          color: allYearsColor
-        },
-        itemStyle: {
-          color: allYearsColor
-        }
-      }
-    ]
-  })
-  trendChart.resize()
-  await new Promise(resolve => setTimeout(resolve, 500))
+  const allYearsOption = getCarbonEmissionsTrendOption(summary, [])
+  allYearsOption.title.text = 'Carbon Emissions Trend (All Years)'
+  allYearsOption.legend.data = ['All Years Emissions']
+  allYearsOption.series = [allYearsOption.series[0]]
   chartImages.push({
     title: 'Carbon Emissions Trend (All Years)',
-    img: trendChart.getDataURL({ type: 'png', pixelRatio: 2 })
+    img: await renderChartToImage(chartContainer, echarts, allYearsOption),
   })
-  trendChart.dispose()
-  chartContainer.removeChild(trendChartEl)
-  
-  // Carbon Emissions Trend Chart - By Year
-  if (summary.emissionsByYearMonth && summary.emissionsByYearMonth.length > 0) {
-    // Color palette for different years
-    const colors = ['#ff7875', '#409eff', '#73d13d', '#9254de', '#faad14', '#13c2c2']
-    
-    // Generate chart for each year
-    summary.emissionsByYearMonth.forEach((yearData, index) => {
-      const yearTrendChartEl = document.createElement('div')
-      yearTrendChartEl.style.cssText = `width: 700px; height: 300px;`
-      chartContainer.appendChild(yearTrendChartEl)
-      
-      const yearTrendChart = echarts.init(yearTrendChartEl)
-      const color = colors[index % colors.length]
-      
-      yearTrendChart.setOption({
-        title: {
-          text: `Carbon Emissions Trend (${yearData.year})`,
-          left: 'center'
-        },
-        tooltip: {
-          trigger: 'axis'
-        },
-        legend: {
-          data: [`${yearData.year} Emissions`],
-          bottom: 10
-        },
-        grid: {
-          left: '3%',
-          right: '4%',
-          bottom: '15%',
-          top: '15%',
-          containLabel: true
-        },
-        xAxis: {
-          type: 'category',
-          boundaryGap: false,
-          data: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        },
-        yAxis: {
-          type: 'value',
-          name: 'kg CO2e'
-        },
-        series: [
-          {
-            name: `${yearData.year} Emissions`,
-            type: 'line',
-            stack: 'Total',
-            areaStyle: {
-              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: color + '80' }, // 50% opacity
-                { offset: 1, color: color + '10' }  // 10% opacity
-              ])
-            },
-            data: yearData.monthlyEmissions ? yearData.monthlyEmissions.map(val => Number(Number(val).toFixed(2))) : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            lineStyle: {
-              color: color
-            },
-            itemStyle: {
-              color: color
-            }
-          }
-        ]
-      })
-      
-      yearTrendChart.resize()
-      chartImages.push({
-        title: `Carbon Emissions Trend (${yearData.year})`,
-        img: yearTrendChart.getDataURL({ type: 'png', pixelRatio: 2 })
-      })
-      yearTrendChart.dispose()
-      chartContainer.removeChild(yearTrendChartEl)
-    })
+
+  const years = (summary.emissionsByYearMonth || []).map(y => y.year).sort()
+  if (years.length > 0) {
+    const yearlyOption = getCarbonEmissionsTrendOption(summary, years)
+    yearlyOption.legend.data = yearlyOption.legend.data.filter(d => d !== 'All Years Emissions')
+    yearlyOption.series = yearlyOption.series.filter(s => s.name !== 'All Years Emissions')
+    for (const [i, year] of years.entries()) {
+      const yearSeries = yearlyOption.series[i]
+      if (yearSeries) {
+        yearSeries.name = `${year} Emissions`
+        chartImages.push({
+          title: `Carbon Emissions Trend (${year})`,
+          img: await renderChartToImage(chartContainer, echarts, {
+            ...yearlyOption,
+            title: { ...yearlyOption.title, text: `Carbon Emissions Trend (${year})` },
+            series: [yearSeries],
+            legend: { ...yearlyOption.legend, data: [`${year} Emissions`] },
+          }),
+        })
+      }
+    }
   }
 
-  // Emissions by Shipment Date Chart
-  chartContainer.appendChild(emissionsByDateChartEl)
-  const emissionsByDateChart = echarts.init(emissionsByDateChartEl)
-  // Sort emissions by date in ascending order (oldest to newest)
-  const sortedEmissions = [...(summary.emissionsByShipmentDate || [])].sort((a, b) => {
-    return new Date(a.date) - new Date(b.date)
-  })
-  
-  const dates = sortedEmissions.map((r) => r.date)
-  const seriesLine = sortedEmissions.map((r) => Number(Number(r.emissionsKg).toFixed(2)))
+  chartImages.push({ title: 'Carbon Emissions', img: await renderChartToImage(chartContainer, echarts, getCarbonEmissionsOption(summary)) })
+  chartImages.push({ title: 'Supplier Distribution', img: await renderChartToImage(chartContainer, echarts, getSupplierDistributionOption(summary)) })
+  chartImages.push({ title: 'Supply Chain Metrics', img: await renderChartToImage(chartContainer, echarts, getSupplyChainMetricsOption(summary)) })
+  chartImages.push({ title: 'Emissions by Shipment Date', img: await renderChartToImage(chartContainer, echarts, getEmissionsByDateOption(summary)) })
+  chartImages.push({ title: 'Share by Transport Mode', img: await renderChartToImage(chartContainer, echarts, getEmissionsByTransportModeOption(summary)) })
+  chartImages.push({ title: 'Transport Mode Emission Factors', img: await renderChartToImage(chartContainer, echarts, getTransportModeFactorsOption(transportModes)) })
 
-  if (dates.length === 0) {
-    emissionsByDateChart.setOption({
-      color: ['#528951'],
-      title: {
-        text: 'Emissions by shipment date',
-        left: 0,
-        textStyle: { fontSize: 14, color: '#3d5340' },
-      },
-      graphic: [{
-        type: 'text',
-        left: 'center',
-        top: 'center',
-        style: {
-          text: '暂无按日数据',
-          fontSize: 13,
-          fill: '#6b7d6b',
-          lineHeight: 20,
-        },
-      }],
-      tooltip: { show: false },
-      grid: { left: 12, right: 20, top: 52, bottom: 36, containLabel: true },
-      xAxis: { type: 'category', data: [], show: false },
-      yAxis: { type: 'value', show: false },
-      series: [],
-    })
-  } else {
-    emissionsByDateChart.setOption({
-      graphic: [],
-      color: ['#528951'],
-      title: {
-        text: 'Emissions by shipment date',
-        left: 0,
-        textStyle: { fontSize: 14, color: '#3d5340' },
-      },
-      tooltip: { trigger: 'axis', show: true },
-      grid: { left: 12, right: 20, top: 52, bottom: 36, containLabel: true },
-      xAxis: {
-        type: 'category',
-        data: dates,
-        show: true,
-        axisLabel: { rotate: dates.length > 8 ? 35 : 0 },
-      },
-      yAxis: {
-        type: 'value',
-        name: 'kg CO2e',
-        show: true,
-        nameGap: 12,
-        axisLabel: { margin: 8 },
-      },
-      series: [
-        { type: 'line', smooth: true, data: seriesLine, areaStyle: { opacity: 0.12 } },
-      ],
-    })
-  }
-  emissionsByDateChart.resize()
-  await new Promise(resolve => setTimeout(resolve, 500))
-  chartImages.push({
-    title: 'Emissions by Shipment Date',
-    img: emissionsByDateChart.getDataURL({ type: 'png', pixelRatio: 2 })
-  })
-  emissionsByDateChart.dispose()
-  chartContainer.removeChild(emissionsByDateChartEl)
-
-  // Emissions by Transport Mode Chart
-  chartContainer.appendChild(emissionsByTransportModeChartEl)
-  const emissionsByTransportModeChart = echarts.init(emissionsByTransportModeChartEl)
-  const pieDataRaw = (summary.emissionsByTransportMode || []).map((r) => ({
-    name: r.transportMode,
-    value: Number(Number(r.emissionsKg).toFixed(2)) || 0,
-  }))
-  const pieData = pieDataRaw.filter((d) => d.value > 0)
-
-  if (pieData.length === 0) {
-    emissionsByTransportModeChart.setOption({
-      color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
-      title: {
-        text: 'Share by transport mode',
-        left: 0,
-        textStyle: { fontSize: 14, color: '#3d5340' },
-      },
-      graphic: [{
-        type: 'text',
-        left: 'center',
-        top: 'center',
-        style: {
-          text: '暂无运输方式分布',
-          fontSize: 13,
-          fill: '#6b7d6b',
-          lineHeight: 20,
-        },
-      }],
-      tooltip: { show: false },
-      series: [{ type: 'pie', radius: ['36%', '62%'], data: [] }],
-    })
-  } else {
-    emissionsByTransportModeChart.setOption({
-      graphic: [],
-      color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
-      title: {
-        text: 'Share by transport mode',
-        left: 0,
-        textStyle: { fontSize: 14, color: '#3d5340' },
-      },
-      tooltip: { trigger: 'item', formatter: '{b}: {c} kg ({d}%)', show: true },
-      series: [
-        {
-          type: 'pie',
-          radius: ['36%', '62%'],
-          avoidLabelOverlap: true,
-          label: { color: '#2d4a2c' },
-          data: pieData,
-        },
-      ],
-    })
-  }
-  emissionsByTransportModeChart.resize()
-  await new Promise(resolve => setTimeout(resolve, 500))
-  chartImages.push({
-    title: 'Share by Transport Mode',
-    img: emissionsByTransportModeChart.getDataURL({ type: 'png', pixelRatio: 2 })
-  })
-  emissionsByTransportModeChart.dispose()
-  chartContainer.removeChild(emissionsByTransportModeChartEl)
-
-  // Transport Mode Emission Factors Chart
-  chartContainer.appendChild(transportModeFactorChartEl)
-  const transportModeFactorChart = echarts.init(transportModeFactorChartEl)
-  
-  const transportModeData = (transportModes || []).map(mode => ({
-    name: mode.displayName || mode.mode || mode.emissionFactor || 'Unknown',
-    value: mode.emissionFactorPerKmPerTon || 0
-  }))
-
-  if (transportModeData.length === 0 || transportModeData.every(d => d.value === 0)) {
-    transportModeFactorChart.setOption({
-      color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
-      title: {
-        text: 'Transport Mode Emission Factors',
-        left: 0,
-        textStyle: { fontSize: 14, color: '#3d5340' },
-      },
-      graphic: [{
-        type: 'text',
-        left: 'center',
-        top: 'center',
-        style: {
-          text: '暂无运输方式排放因子数据',
-          fontSize: 13,
-          fill: '#6b7d6b',
-          lineHeight: 20,
-        },
-      }],
-      tooltip: { show: false },
-      xAxis: { type: 'category', data: [], show: false },
-      yAxis: { type: 'value', show: false },
-      series: [],
-    })
-  } else {
-    transportModeFactorChart.setOption({
-      graphic: [],
-      color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
-      title: {
-        text: 'Transport Mode Emission Factors',
-        left: 0,
-        textStyle: { fontSize: 14, color: '#3d5340' },
-      },
-      tooltip: {
-        trigger: 'axis',
-        formatter: '{b}: {c} kg CO2e/km/ton',
-        show: true
-      },
-      grid: { left: 12, right: 20, top: 52, bottom: 36, containLabel: true },
-      xAxis: {
-        type: 'category',
-        data: transportModeData.map(d => d.name),
-        show: true,
-        axisLabel: { rotate: transportModeData.length > 4 ? 35 : 0 }
-      },
-      yAxis: {
-        type: 'value',
-        name: 'kg CO2e/km/ton',
-        show: true,
-        nameGap: 12,
-        axisLabel: { margin: 20 },
-      },
-      series: [
-        {
-          type: 'bar',
-          data: transportModeData.map(d => d.value),
-          itemStyle: {
-            borderRadius: [4, 4, 0, 0]
-          }
-        }
-      ],
-    })
-  }
-  transportModeFactorChart.resize()
-  await new Promise(resolve => setTimeout(resolve, 500))
-  chartImages.push({
-    title: 'Transport Mode Emission Factors',
-    img: transportModeFactorChart.getDataURL({ type: 'png', pixelRatio: 2 })
-  })
-  transportModeFactorChart.dispose()
-  chartContainer.removeChild(transportModeFactorChartEl)
-
-  // Remove temporary container
   document.body.removeChild(chartContainer)
 
-  // Generate HTML with charts
   let chartsHtml = `
     <h2 style="color: #5f795f; margin-top: 40px; margin-bottom: 20px;">Charts</h2>
   `
@@ -631,7 +144,7 @@ function downloadBlob(filename, mime, body) {
 
 async function exportCsv() {
   if (!isLoggedIn.value) return
-  loading.value = true
+  csvLoading.value = true
   message.value = ''
   try {
     const [sumRes, supRes, shipRes] = await Promise.all([
@@ -752,13 +265,13 @@ async function exportCsv() {
   } catch {
     setMsg('Export failed. Check network and backend.')
   } finally {
-    loading.value = false
+    csvLoading.value = false
   }
 }
 
 async function exportPdf() {
   if (!isLoggedIn.value) return
-  loading.value = true
+  pdfLoading.value = true
   message.value = ''
   try {
     const [sumRes, supRes, shipRes, modeRes] = await Promise.all([
@@ -942,7 +455,7 @@ async function exportPdf() {
     console.error('PDF export error:', error)
     setMsg('PDF export failed. Check network and backend.')
   } finally {
-    loading.value = false
+    pdfLoading.value = false
   }
 }
 
@@ -976,11 +489,11 @@ watch(isLoggedIn, (loggedIn) => {
 
       <div class="panel">
         <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-          <button type="button" class="btn btn--primary" :disabled="loading" @click="exportCsv">
-            {{ loading ? 'Preparing…' : 'Download CSV report' }}
+          <button type="button" class="btn btn--primary" :disabled="csvLoading" @click="exportCsv">
+            {{ csvLoading ? 'Preparing…' : 'Download CSV report' }}
           </button>
-          <button type="button" class="btn btn--primary" :disabled="loading" @click="exportPdf">
-            {{ loading ? 'Preparing…' : 'Download PDF report' }}
+          <button type="button" class="btn btn--primary" :disabled="pdfLoading" @click="exportPdf">
+            {{ pdfLoading ? 'Preparing…' : 'Download PDF report' }}
           </button>
         </div>
       </div>

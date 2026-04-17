@@ -3,6 +3,13 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { formatErrorBody } from '../utils/apiError'
 import * as echarts from 'echarts'
+import {
+  getCarbonEmissionsOption,
+  getSupplierDistributionOption,
+  getSupplyChainMetricsOption,
+  getCarbonEmissionsTrendOption,
+  getHistoryAnalysisOption,
+} from '../utils/chartConfig'
 
 const { apiAuthHeader, currentUser } = useAuth()
 
@@ -42,262 +49,25 @@ async function apiFetch(path, options = {}) {
 
 function initCharts() {
   if (!summary.value) return
-  
-  // Carbon Emissions Chart
+
   if (emissionsChart.value) {
     const chart = echarts.init(emissionsChart.value)
-    const option = {
-      title: {
-        text: 'Carbon Emissions',
-        left: 'center'
-      },
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: {
-          type: 'shadow'
-        }
-      },
-      legend: {
-        data: ['Total Emissions', 'Avoided Emissions'],
-        bottom: 10
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '15%',
-        top: '15%',
-        containLabel: true
-      },
-      xAxis: {
-        type: 'category',
-        data: ['Emissions (kg CO2e)']
-      },
-      yAxis: {
-        type: 'value'
-      },
-      series: [
-        {
-          name: 'Total Emissions',
-          type: 'bar',
-          data: [Number(summary.value.totalEmissionsKg).toFixed(2)],
-          itemStyle: {
-            color: '#ff7875'
-          }
-        },
-        {
-          name: 'Avoided Emissions',
-          type: 'bar',
-          data: [Number(summary.value.estimatedAvoidedEmissionsKg).toFixed(2)],
-          itemStyle: {
-            color: '#73d13d'
-          }
-        }
-      ]
-    }
-    chart.setOption(option)
+    chart.setOption(getCarbonEmissionsOption(summary.value))
   }
-  
-  // Supplier Distribution Chart
+
   if (supplierChart.value) {
     const chart = echarts.init(supplierChart.value)
-    const option = {
-      title: {
-        text: 'Supplier Distribution',
-        left: 'center'
-      },
-      tooltip: {
-        trigger: 'item'
-      },
-      legend: {
-        orient: 'vertical',
-        left: 'left',
-        bottom: 10
-      },
-      series: [
-        {
-          name: 'Suppliers',
-          type: 'pie',
-          radius: '60%',
-          center: ['50%', '50%'],
-          data: [
-            {
-              value: summary.value.certifiedSupplierCount,
-              name: 'Certified'
-            },
-            {
-              value: summary.value.registeredSupplierCount - summary.value.certifiedSupplierCount,
-              name: 'Non-Certified'
-            }
-          ],
-          emphasis: {
-            itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.5)'
-            }
-          }
-        }
-      ]
-    }
-    chart.setOption(option)
+    chart.setOption(getSupplierDistributionOption(summary.value))
   }
-  
-  // Shipment & Supply Chain Chart
+
   if (shipmentChart.value) {
     const chart = echarts.init(shipmentChart.value)
-    const option = {
-      title: {
-        text: 'Supply Chain Metrics',
-        left: 'center'
-      },
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: {
-          type: 'shadow'
-        }
-      },
-      legend: {
-        data: ['Shipments', 'Enterprises'],
-        bottom: 10
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '15%',
-        top: '15%',
-        containLabel: true
-      },
-      xAxis: {
-        type: 'category',
-        data: ['Count']
-      },
-      yAxis: {
-        type: 'value'
-      },
-      series: [
-        {
-          name: 'Shipments',
-          type: 'bar',
-          data: [summary.value.shipmentCount],
-          itemStyle: {
-            color: '#409eff'
-          }
-        },
-        {
-          name: 'Enterprises',
-          type: 'bar',
-          data: [summary.value.enterprisesInSupplyChain],
-          itemStyle: {
-            color: '#9254de'
-          }
-        }
-      ]
-    }
-    chart.setOption(option)
+    chart.setOption(getSupplyChainMetricsOption(summary.value))
   }
-  
-  // Carbon Emissions Trend Chart
+
   if (trendChart.value) {
     const chart = echarts.init(trendChart.value)
-    
-    // Color palette for different years
-    const colors = ['#ff7875', '#409eff', '#73d13d', '#9254de', '#faad14', '#13c2c2']
-    
-    // Generate series based on selected years
-    const series = []
-    const legendData = []
-    
-    // Always show total emissions (All Years)
-    legendData.push('All Years Emissions')
-    series.push({
-      name: 'All Years Emissions',
-      type: 'line',
-      stack: 'Total',
-      areaStyle: {
-        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(0, 0, 0, 0.5)' },
-          { offset: 1, color: 'rgba(0, 0, 0, 0.1)' }
-        ])
-      },
-      data: summary.value.monthlyEmissions ? summary.value.monthlyEmissions.map(val => Number(Number(val).toFixed(2))) : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-      lineStyle: {
-        color: '#000000'
-      },
-      itemStyle: {
-        color: '#000000'
-      },
-      tooltip: {
-        formatter: function(params) {
-          return params.marker + params.seriesName + ': ' + Number(params.value).toFixed(2) + ' kg CO2e'
-        }
-      }
-    })
-    
-    // Show all years by default
-    const yearsToShow = availableYears.value
-    
-    yearsToShow.forEach((year, index) => {
-      const yearData = summary.value.emissionsByYearMonth?.find(item => item.year === year)
-      if (yearData) {
-        const color = colors[index % colors.length]
-        legendData.push(`${year} Emissions`)
-        series.push({
-          name: `${year} Emissions`,
-          type: 'line',
-          stack: 'Total',
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: color + '80' }, // 50% opacity
-              { offset: 1, color: color + '10' }  // 10% opacity
-            ])
-          },
-          data: yearData.monthlyEmissions ? yearData.monthlyEmissions.map(val => Number(Number(val).toFixed(2))) : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-          lineStyle: {
-            color: color
-          },
-          itemStyle: {
-            color: color
-          },
-          tooltip: {
-            formatter: function(params) {
-              return params.marker + params.seriesName + ': ' + Number(params.value).toFixed(2) + ' kg CO2e'
-            }
-          }
-        })
-      }
-    })
-    
-    const option = {
-      title: {
-        text: 'Carbon Emissions Trend',
-        left: 'center'
-      },
-      tooltip: {
-        trigger: 'axis'
-      },
-      legend: {
-        data: legendData,
-        bottom: 10
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '15%',
-        top: '15%',
-        containLabel: true
-      },
-      xAxis: {
-        type: 'category',
-        boundaryGap: false,
-        data: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-      },
-      yAxis: {
-        type: 'value',
-        name: 'kg CO2e'
-      },
-      series: series
-    }
-    chart.setOption(option)
+    chart.setOption(getCarbonEmissionsTrendOption(summary.value, availableYears.value))
   }
 }
 
@@ -366,77 +136,7 @@ function initHistoryChart() {
   
   const chart = echarts.init(historyChart.value)
   const analysis = historyAnalysis.value
-  
-  const option = {
-    title: {
-      text: 'History Analysis Overview',
-      left: 'center'
-    },
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      },
-      formatter: '{b}: {c}'
-    },
-    grid: {
-      left: '20%',
-      right: '20%',
-      bottom: '15%',
-      top: '15%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: ['Total Shipments', 'Potential Savings %']
-    },
-    yAxis: {
-      type: 'value',
-      axisLabel: {
-        formatter: '{value}'
-      }
-    },
-    series: [
-      {
-        name: 'History Analysis',
-        type: 'bar',
-        barWidth: '40%',
-        data: [
-          {
-            value: Math.round(analysis.total_shipments || 0),
-            itemStyle: {
-              color: '#5470c6'
-            }
-          },
-          {
-            value: Math.round((analysis.potential_savings_percent || 0) * 100) / 100,
-            itemStyle: {
-              color: '#91cc75'
-            }
-          }
-        ],
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.5)'
-          }
-        },
-        label: {
-          show: true,
-          position: 'top',
-          formatter: function(params) {
-            if (params.dataIndex === 0) {
-              return params.value
-            } else {
-              return params.value + '%'
-            }
-          }
-        }
-      }
-    ]
-  }
-  chart.setOption(option)
+  chart.setOption(getHistoryAnalysisOption(analysis))
 }
 
 watch(
