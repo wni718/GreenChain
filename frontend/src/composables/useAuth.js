@@ -45,6 +45,8 @@ export function useAuth() {
   function logout() {
     currentUser.value = null
     sessionStorage.removeItem(STORAGE_KEY)
+    // Clear API cache on logout
+    clearApiCache()
   }
 
   /** @returns {Record<string, string>} */
@@ -65,4 +67,14 @@ export function useAuth() {
     logout,
     apiAuthHeader,
   }
+}
+
+/**
+ * Clear all API cache entries.
+ * Called on logout to prevent stale data from one user being shown to another.
+ */
+function clearApiCache() {
+  const CACHE_PREFIX = 'gc_cache_'
+  const keys = Object.keys(sessionStorage).filter((k) => k.startsWith(CACHE_PREFIX))
+  keys.forEach((k) => sessionStorage.removeItem(k))
 }

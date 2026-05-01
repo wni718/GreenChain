@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useAuth } from '../composables/useAuth'
+import { useApiCache } from '../composables/useApiCache'
 import { formatErrorBody } from '../utils/apiError'
 import * as echarts from 'echarts'
 import {
@@ -10,8 +11,10 @@ import {
   getCarbonEmissionsTrendOption,
   getHistoryAnalysisOption,
 } from '../utils/chartConfig'
+import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const { apiAuthHeader, currentUser } = useAuth()
+const { get: getCache, set: setCache } = useApiCache()
 
 const isLoggedIn = computed(() => Boolean(currentUser.value?.username))
 
@@ -87,34 +90,72 @@ function initCharts() {
   }
 }
 
-async function loadSummary() {
+async function loadSummary(useCache = true) {
   if (!isLoggedIn.value) return
   loading.value = true
   message.value = ''
+
+  // Try cache first
+  if (useCache) {
+    const cached = getCache('/api/dashboard/summary')
+    if (cached) {
+      summary.value = cached.data
+      loading.value = false
+      await nextTick()
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 50))
+      initCharts()
+      return
+    }
+  }
+
   try {
     const res = await apiFetch('/api/dashboard/summary')
     const text = await res.text()
     if (!res.ok) {
       setMsg(formatErrorBody(res.status, text))
       summary.value = null
+      loading.value = false
       return
     }
-    summary.value = text ? JSON.parse(text) : null
-    // Initialize charts after data is loaded
+    const data = text ? JSON.parse(text) : null
+    summary.value = data
+    // Cache the response
+    setCache('/api/dashboard/summary', data)
+    // Set loading to false first so chart containers are rendered
+    loading.value = false
+    // Wait for DOM to update and containers to become visible
     await nextTick()
+    await nextTick()
+    // Small delay to ensure containers are fully rendered
+    await new Promise(resolve => setTimeout(resolve, 50))
+    // Initialize charts after data is loaded
     initCharts()
   } catch {
     setMsg(
       'Cannot reach the server. Start the backend and run the frontend with npm run dev (proxy /api).',
     )
     summary.value = null
-  } finally {
     loading.value = false
   }
 }
 
-async function loadHistoryAnalysis() {
+async function loadHistoryAnalysis(useCache = true) {
   if (!isLoggedIn.value) return
+
+  // Try cache first
+  if (useCache) {
+    const cached = getCache('/api/recommend/history-analysis')
+    if (cached) {
+      historyAnalysis.value = cached.data
+      await nextTick()
+      setTimeout(() => {
+        initHistoryChart()
+      }, 100)
+      return
+    }
+  }
+
   try {
     const res = await apiFetch('/api/recommend/history-analysis')
     const text = await res.text()
@@ -125,6 +166,8 @@ async function loadHistoryAnalysis() {
     }
     const data = text ? JSON.parse(text) : null
     historyAnalysis.value = data
+    // Cache the response
+    setCache('/api/recommend/history-analysis', data)
     // Wait for next tick and a bit more for DOM to be ready
     await nextTick()
     setTimeout(() => {
@@ -223,7 +266,26 @@ onMounted(() => {
         </button>
       </div>
 
-      <div v-if="summary" class="content-container">
+      <!-- Loading skeleton -->
+      <template v-if="loading">
+        <div class="kpi-container">
+          <div class="kpi-row">
+            <SkeletonLoader type="stat-card" :rows="3" />
+          </div>
+          <div class="kpi-row kpi-row--four">
+            <SkeletonLoader type="stat-card" :rows="4" />
+          </div>
+        </div>
+        <div class="charts-grid">
+          <SkeletonLoader type="chart" />
+          <SkeletonLoader type="chart" />
+          <SkeletonLoader type="chart" />
+          <SkeletonLoader type="chart" />
+        </div>
+      </template>
+
+      <!-- Data content -->
+      <div v-else-if="summary" class="content-container">
         <!-- KPI Cards -->
         <div class="kpi-container">
           <!-- First row: 3 items -->
@@ -426,6 +488,17 @@ onMounted(() => {
   display: flex;
   gap: 1rem;
   width: 100%;
+}
+
+.kpi-row--four {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 768px) {
+  .kpi-row--four {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .kpi-row .kpi-card {

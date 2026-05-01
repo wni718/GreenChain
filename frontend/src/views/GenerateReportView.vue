@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useAuth } from '../composables/useAuth'
+import { useApiCache } from '../composables/useApiCache'
 import { formatErrorBody } from '../utils/apiError'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -16,6 +17,10 @@ import {
 } from '../utils/chartConfig'
 
 const { apiAuthHeader, currentUser } = useAuth()
+const { get: getCache, set: setCache } = useApiCache()
+
+// Cache TTL for report data (1 minute - short because reports need fresh data)
+const REPORT_CACHE_TTL = 60 * 1000
 
 const isLoggedIn = computed(() => Boolean(currentUser.value?.username))
 
@@ -125,6 +130,17 @@ async function apiFetch(path, options = {}) {
   return fetch(path, { ...options, headers })
 }
 
+async function logExportAudit(reportType) {
+  try {
+    await apiFetch('/api/audit-logs/export', {
+      method: 'POST',
+      body: JSON.stringify({ reportType }),
+    })
+  } catch {
+    // Silent fail - don't block export on audit failure
+  }
+}
+
 function csvEscape(value) {
   if (value == null) return ''
   const s = String(value)
@@ -147,31 +163,53 @@ async function exportCsv() {
   csvLoading.value = true
   message.value = ''
   try {
-    const [sumRes, supRes, shipRes] = await Promise.all([
-      apiFetch('/api/dashboard/summary'),
-      apiFetch('/api/suppliers'),
-      apiFetch('/api/shipments'),
-    ])
+    // Try cache first
+    const [cachedSummary, cachedSuppliers, cachedShipments] = [
+      getCache('/api/dashboard/summary'),
+      getCache('/api/suppliers'),
+      getCache('/api/shipments'),
+    ]
 
-    const sumText = await sumRes.text()
-    if (!sumRes.ok) {
-      setMsg(formatErrorBody(sumRes.status, sumText))
-      return
-    }
-    const supText = await supRes.text()
-    if (!supRes.ok) {
-      setMsg(formatErrorBody(supRes.status, supText))
-      return
-    }
-    const shipText = await shipRes.text()
-    if (!shipRes.ok) {
-      setMsg(formatErrorBody(shipRes.status, shipText))
-      return
-    }
+    let summary, suppliers, shipments
 
-    const summary = sumText ? JSON.parse(sumText) : {}
-    const suppliers = supText ? JSON.parse(supText) : []
-    const shipments = shipText ? JSON.parse(shipText) : []
+    if (cachedSummary && cachedSuppliers && cachedShipments) {
+      // Use cached data
+      summary = cachedSummary.data
+      suppliers = cachedSuppliers.data
+      shipments = cachedShipments.data
+    } else {
+      // Fetch fresh data and cache it
+      const [sumRes, supRes, shipRes] = await Promise.all([
+        apiFetch('/api/dashboard/summary'),
+        apiFetch('/api/suppliers'),
+        apiFetch('/api/shipments'),
+      ])
+
+      const sumText = await sumRes.text()
+      if (!sumRes.ok) {
+        setMsg(formatErrorBody(sumRes.status, sumText))
+        return
+      }
+      const supText = await supRes.text()
+      if (!supRes.ok) {
+        setMsg(formatErrorBody(supRes.status, supText))
+        return
+      }
+      const shipText = await shipRes.text()
+      if (!shipRes.ok) {
+        setMsg(formatErrorBody(shipRes.status, shipText))
+        return
+      }
+
+      summary = sumText ? JSON.parse(sumText) : {}
+      suppliers = supText ? JSON.parse(supText) : []
+      shipments = shipText ? JSON.parse(shipText) : []
+
+      // Cache the data
+      setCache('/api/dashboard/summary', summary, REPORT_CACHE_TTL)
+      setCache('/api/suppliers', suppliers, REPORT_CACHE_TTL)
+      setCache('/api/shipments', shipments, REPORT_CACHE_TTL)
+    }
 
     const lines = []
 
@@ -261,6 +299,7 @@ async function exportCsv() {
     const csv = lines.join('\r\n')
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
     downloadBlob(`greenchain-report-${stamp}.csv`, 'text/csv;charset=utf-8', '\uFEFF' + csv)
+    logExportAudit('REPORT')
     setMsg('Report downloaded as CSV.', 'ok')
   } catch {
     setMsg('Export failed. Check network and backend.')
@@ -274,34 +313,59 @@ async function exportPdf() {
   pdfLoading.value = true
   message.value = ''
   try {
-    const [sumRes, supRes, shipRes, modeRes] = await Promise.all([
-      apiFetch('/api/dashboard/summary'),
-      apiFetch('/api/suppliers'),
-      apiFetch('/api/shipments'),
-      apiFetch('/api/transport-modes'),
-    ])
+    // Try cache first
+    const [cachedSummary, cachedSuppliers, cachedShipments, cachedTransportModes] = [
+      getCache('/api/dashboard/summary'),
+      getCache('/api/suppliers'),
+      getCache('/api/shipments'),
+      getCache('/api/transport-modes'),
+    ]
 
-    const sumText = await sumRes.text()
-    if (!sumRes.ok) {
-      setMsg(formatErrorBody(sumRes.status, sumText))
-      return
-    }
-    const supText = await supRes.text()
-    if (!supRes.ok) {
-      setMsg(formatErrorBody(supRes.status, supText))
-      return
-    }
-    const shipText = await shipRes.text()
-    if (!shipRes.ok) {
-      setMsg(formatErrorBody(shipRes.status, shipText))
-      return
-    }
-    const modeText = await modeRes.text()
-    const transportModes = modeRes.ok && modeText ? JSON.parse(modeText) : []
+    let summary, suppliers, shipments, transportModes
 
-    const summary = sumText ? JSON.parse(sumText) : {}
-    const suppliers = supText ? JSON.parse(supText) : []
-    const shipments = shipText ? JSON.parse(shipText) : []
+    if (cachedSummary && cachedSuppliers && cachedShipments && cachedTransportModes) {
+      // Use cached data
+      summary = cachedSummary.data
+      suppliers = cachedSuppliers.data
+      shipments = cachedShipments.data
+      transportModes = cachedTransportModes.data
+    } else {
+      // Fetch fresh data and cache it
+      const [sumRes, supRes, shipRes, modeRes] = await Promise.all([
+        apiFetch('/api/dashboard/summary'),
+        apiFetch('/api/suppliers'),
+        apiFetch('/api/shipments'),
+        apiFetch('/api/transport-modes'),
+      ])
+
+      const sumText = await sumRes.text()
+      if (!sumRes.ok) {
+        setMsg(formatErrorBody(sumRes.status, sumText))
+        return
+      }
+      const supText = await supRes.text()
+      if (!supRes.ok) {
+        setMsg(formatErrorBody(supRes.status, supText))
+        return
+      }
+      const shipText = await shipRes.text()
+      if (!shipRes.ok) {
+        setMsg(formatErrorBody(shipRes.status, shipText))
+        return
+      }
+      const modeText = await modeRes.text()
+      transportModes = modeRes.ok && modeText ? JSON.parse(modeText) : []
+
+      summary = sumText ? JSON.parse(sumText) : {}
+      suppliers = supText ? JSON.parse(supText) : []
+      shipments = shipText ? JSON.parse(shipText) : []
+
+      // Cache the data
+      setCache('/api/dashboard/summary', summary, REPORT_CACHE_TTL)
+      setCache('/api/suppliers', suppliers, REPORT_CACHE_TTL)
+      setCache('/api/shipments', shipments, REPORT_CACHE_TTL)
+      setCache('/api/transport-modes', transportModes, REPORT_CACHE_TTL)
+    }
 
     // Create PDF report container
     const reportContainer = document.createElement('div')
@@ -450,6 +514,7 @@ async function exportPdf() {
     // Download PDF
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
     pdf.save(`greenchain-report-${stamp}.pdf`)
+    logExportAudit('REPORT')
     setMsg('Report downloaded as PDF.', 'ok')
   } catch (error) {
     console.error('PDF export error:', error)

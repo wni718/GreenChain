@@ -1,11 +1,17 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useAuth } from '../composables/useAuth'
+import { useFormValidation, ValidationRules } from '../composables/useFormValidation'
+import { usePagination } from '../composables/usePagination'
+import { useApiCache } from '../composables/useApiCache'
+import Pagination from '../components/Pagination.vue'
 import { formatErrorBody } from '../utils/apiError'
 
 const { apiAuthHeader, currentUser } = useAuth()
+const { get: getCache, set: setCache } = useApiCache()
 
 const isLoggedIn = computed(() => Boolean(currentUser.value?.username))
+const canModify = computed(() => currentUser.value?.role !== 'VIEWER')
 
 const suppliers = ref([])
 const loading = ref(false)
@@ -16,17 +22,43 @@ const certifiedOnly = ref(false)
 
 const dialogOpen = ref(false)
 const editingId = ref(null)
-const form = ref({
-  name: '',
-  country: '',
-  contactEmail: '',
-  emissionFactorPerUnit: '',
-  hasEnvironmentalCertification: false,
-})
 
-const displayedRows = computed(() => {
-  if (!certifiedOnly.value) return suppliers.value
-  return suppliers.value.filter((s) => s.hasEnvironmentalCertification === true)
+const {
+  currentPage,
+  pageSize,
+  totalElements,
+  totalPages,
+  setPage,
+  updatePageInfo,
+  reset: resetPagination,
+} = usePagination(15)
+
+// 表单验证
+const {
+  fields: form,
+  errors: formErrors,
+  touched: formTouched,
+  validateAll: validateForm,
+  touchField: touchFormField,
+  initForm: initFormFields,
+  resetValidation: resetFormValidation,
+} = useFormValidation({
+  name: [
+    ValidationRules.required('Please enter a supplier name'),
+    ValidationRules.minLength(2, 'Name must be at least 2 characters'),
+    ValidationRules.maxLength(100, 'Name must be at most 100 characters'),
+  ],
+  country: [
+    ValidationRules.maxLength(100, 'Country must be at most 100 characters'),
+  ],
+  contactEmail: [
+    ValidationRules.email('Please enter a valid email address'),
+    ValidationRules.maxLength(100, 'Email must be at most 100 characters'),
+  ],
+  emissionFactorPerUnit: [
+    ValidationRules.number('Please enter a valid number'),
+    ValidationRules.nonNegativeNumber('Emission factor cannot be negative'),
+  ],
 })
 
 function setMsg(text, kind = 'err') {
@@ -43,56 +75,90 @@ async function apiFetch(path, options = {}) {
   return fetch(path, { ...options, headers })
 }
 
-async function loadList() {
+async function loadList(pageToLoad = 0, size = pageSize.value) {
   if (!isLoggedIn.value) return
   loading.value = true
   message.value = ''
   try {
-    const url = certifiedOnly.value ? '/api/suppliers/certified' : '/api/suppliers'
+    const baseUrl = certifiedOnly.value ? '/api/suppliers/certified' : '/api/suppliers'
+    const url = `${baseUrl}?page=${pageToLoad}&size=${size}`
     const res = await apiFetch(url)
     const text = await res.text()
     if (!res.ok) {
       setMsg(formatErrorBody(res.status, text))
       suppliers.value = []
+      updatePageInfo({ page: 0, size, totalElements: 0 })
       return
     }
     try {
-      suppliers.value = text ? JSON.parse(text) : []
+      const data = text ? JSON.parse(text) : null
+      if (data && Array.isArray(data.content)) {
+        suppliers.value = data.content
+        updatePageInfo({
+          page: data.page,
+          size: data.size,
+          totalElements: data.totalElements,
+        })
+      } else if (Array.isArray(data)) {
+        suppliers.value = data
+        updatePageInfo({ page: 0, size, totalElements: data.length })
+      } else {
+        suppliers.value = []
+        updatePageInfo({ page: 0, size, totalElements: 0 })
+      }
     } catch {
       setMsg('Response was not valid JSON.')
       suppliers.value = []
+      updatePageInfo({ page: 0, size, totalElements: 0 })
     }
   } catch {
     setMsg(
       'Cannot reach the server. Make sure the backend is running and /api is proxied (e.g. npm run dev).',
     )
     suppliers.value = []
+    updatePageInfo({ page: 0, size, totalElements: 0 })
   } finally {
     loading.value = false
   }
 }
 
+function handlePageChange(page) {
+  console.log('[Pagination] handlePageChange called with:', page)
+  setPage(page)
+  loadList(page)
+}
+
+function handlePageSizeChange(newSize) {
+  resetPagination()
+  loadList(0, newSize)
+}
+
+// Watch certifiedOnly changes to reload with new filter
+watch(certifiedOnly, () => {
+  resetPagination()
+  loadList()
+})
+
 function openCreate() {
-  // Check if user is a supplier
   if (currentUser.value?.role === 'SUPPLIER') {
     alert('You are a supplier, you can\'t create a new one')
     return
   }
-  
+
   editingId.value = null
-  form.value = {
+  initFormFields({
     name: '',
     country: '',
     contactEmail: '',
     emissionFactorPerUnit: '',
     hasEnvironmentalCertification: false,
-  }
+  })
   dialogOpen.value = true
 }
 
 function openEdit(row) {
   editingId.value = row.id
-  form.value = {
+  initFormFields({
     name: row.name ?? '',
     country: row.country ?? '',
     contactEmail: row.contactEmail ?? '',
@@ -101,32 +167,43 @@ function openEdit(row) {
         ? String(row.emissionFactorPerUnit)
         : '',
     hasEnvironmentalCertification: Boolean(row.hasEnvironmentalCertification),
-  }
+  })
   dialogOpen.value = true
 }
 
 function closeDialog() {
   dialogOpen.value = false
+  editingId.value = null
+  resetFormValidation()
 }
 
 function bodyFromForm() {
-  const ef = form.value.emissionFactorPerUnit.trim()
+  const ef = form.emissionFactorPerUnit?.trim() || ''
   const emissionFactorPerUnit = ef === '' ? null : Number(ef)
   return {
-    name: form.value.name.trim(),
-    country: form.value.country.trim(),
-    contactEmail: form.value.contactEmail.trim(),
-    hasEnvironmentalCertification: Boolean(form.value.hasEnvironmentalCertification),
+    name: form.name?.trim() || '',
+    country: form.country?.trim() || '',
+    contactEmail: form.contactEmail?.trim() || '',
+    hasEnvironmentalCertification: Boolean(form.hasEnvironmentalCertification),
     emissionFactorPerUnit: Number.isFinite(emissionFactorPerUnit) ? emissionFactorPerUnit : null,
   }
 }
 
 async function saveSupplier() {
-  const body = bodyFromForm()
-  if (!body.name) {
-    setMsg('Please enter a supplier name.')
+  // 标记所有字段为已访问并验证
+  touchFormField('name')
+  touchFormField('country')
+  touchFormField('contactEmail')
+  touchFormField('emissionFactorPerUnit')
+
+  const isValid = await validateForm()
+  if (!isValid) {
+    setMsg('Please fix the errors above before submitting.')
     return
   }
+
+  const body = bodyFromForm()
+
   message.value = ''
   try {
     const isEdit = editingId.value != null
@@ -143,7 +220,7 @@ async function saveSupplier() {
       return
     }
     if (res.status === 403) {
-      alert("No, you don't have permission to edit information about other suppliers")
+      alert("You don't have permission to edit information about other suppliers")
       closeDialog()
       return
     }
@@ -175,7 +252,7 @@ async function removeRow(row) {
       return
     }
     if (res.status === 403) {
-      alert('不行，你没有权限编辑其他供应商的信息')
+      alert('You do not have permission to edit other suppliers\' information')
       closeDialog()
       return
     }
@@ -191,7 +268,7 @@ async function removeRow(row) {
 }
 
 function onToggleCertifiedFilter() {
-  loadList()
+  // Handled by watch on certifiedOnly
 }
 
 watch(
@@ -232,7 +309,7 @@ watch(
       </p>
 
       <div class="toolbar">
-        <label class="toolbar-check">
+        <label v-if="canModify" class="toolbar-check">
           <input v-model="certifiedOnly" type="checkbox" @change="onToggleCertifiedFilter" />
           Certified suppliers only
         </label>
@@ -240,7 +317,7 @@ watch(
           <button type="button" class="btn btn--ghost" :disabled="loading" @click="loadList">
             {{ loading ? 'Loading…' : 'Refresh' }}
           </button>
-          <button type="button" class="btn btn--primary" @click="openCreate">New supplier</button>
+          <button v-if="canModify" type="button" class="btn btn--primary" @click="openCreate">New supplier</button>
         </div>
       </div>
 
@@ -253,20 +330,30 @@ watch(
               <th scope="col">Certified</th>
               <th scope="col">Emission factor</th>
               <th scope="col">Contact email</th>
-              <th scope="col" class="col-actions">Actions</th>
+              <th v-if="canModify" scope="col" class="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-if="!loading && displayedRows.length === 0">
+            <!-- Loading skeleton -->
+            <template v-if="loading">
+              <tr v-for="i in 5" :key="'skeleton-' + i">
+                <td colspan="6">
+                  <div class="skeleton-table-cell skeleton-cell--full"></div>
+                </td>
+              </tr>
+            </template>
+            <!-- Empty state -->
+            <tr v-else-if="suppliers.length === 0">
               <td colspan="6" class="empty-cell">No data</td>
             </tr>
-            <tr v-for="row in displayedRows" :key="row.id">
+            <!-- Data rows -->
+            <tr v-else v-for="row in suppliers" :key="row.id">
               <td>{{ row.name || '—' }}</td>
               <td>{{ row.country || '—' }}</td>
               <td>{{ row.hasEnvironmentalCertification ? 'Yes' : 'No' }}</td>
               <td>{{ row.emissionFactorPerUnit != null ? row.emissionFactorPerUnit : '—' }}</td>
               <td class="cell-email">{{ row.contactEmail || '—' }}</td>
-              <td class="col-actions">
+              <td v-if="canModify" class="col-actions">
                 <button type="button" class="link-btn" @click="openEdit(row)">Edit</button>
                 <button type="button" class="link-btn link-btn--danger" @click="removeRow(row)">
                   Delete
@@ -277,37 +364,174 @@ watch(
         </table>
       </div>
 
+      <Pagination
+        v-if="totalPages > 0"
+        :current-page="currentPage"
+        :total-pages="totalPages"
+        :total-elements="totalElements"
+        :page-size="pageSize"
+        @page-change="handlePageChange"
+        @page-size-change="handlePageSizeChange"
+      />
+
       <div v-if="dialogOpen" class="dialog-backdrop" role="presentation" @click.self="closeDialog">
         <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="supplier-dialog-title">
           <h2 id="supplier-dialog-title" class="dialog__title">
             {{ editingId != null ? 'Edit supplier' : 'New supplier' }}
           </h2>
-          <form class="dialog__form" @submit.prevent="saveSupplier">
-            <label class="field">
-              <span class="field__label">Name *</span>
-              <input v-model="form.name" class="field__input" type="text" autocomplete="organization" />
-            </label>
-            <label class="field">
-              <span class="field__label">Country / region</span>
-              <input v-model="form.country" class="field__input" type="text" />
-            </label>
-            <label class="field">
-              <span class="field__label">Contact email</span>
-              <input v-model="form.contactEmail" class="field__input" type="email" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span class="field__label">Emission factor per unit (optional)</span>
-              <input
-                v-model="form.emissionFactorPerUnit"
-                class="field__input"
-                type="text"
-                inputmode="decimal"
-              />
-            </label>
+          <form class="dialog__form" @submit.prevent="saveSupplier" novalidate>
+            <!-- Name Field -->
+            <div class="form-field" :class="{ 'form-field--error': formTouched.name && formErrors.name }">
+              <label for="supplier-name" class="form-field__label">
+                Name <span class="form-field__required">*</span>
+              </label>
+              <div class="form-field__input-wrapper">
+                <input
+                  id="supplier-name"
+                  v-model="form.name"
+                  class="form-field__input"
+                  type="text"
+                  autocomplete="organization"
+                  :class="{ 'form-field__input--error': formTouched.name && formErrors.name }"
+                  placeholder="Enter supplier name"
+                  @blur="touchFormField('name')"
+                />
+                <span
+                  v-if="formTouched.name && !formErrors.name && form.name"
+                  class="form-field__icon form-field__icon--success"
+                  aria-hidden="true"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span
+                  v-else-if="formTouched.name && formErrors.name"
+                  class="form-field__icon form-field__icon--error"
+                  aria-hidden="true"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 8v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="12" cy="16" r="1" fill="currentColor"/>
+                  </svg>
+                </span>
+              </div>
+              <p v-if="formTouched.name && formErrors.name" class="form-field__message form-field__message--error" role="alert">
+                {{ formErrors.name }}
+              </p>
+            </div>
+
+            <!-- Country Field -->
+            <div class="form-field" :class="{ 'form-field--error': formTouched.country && formErrors.country }">
+              <label for="supplier-country" class="form-field__label">Country / region</label>
+              <div class="form-field__input-wrapper">
+                <input
+                  id="supplier-country"
+                  v-model="form.country"
+                  class="form-field__input"
+                  type="text"
+                  :class="{ 'form-field__input--error': formTouched.country && formErrors.country }"
+                  placeholder="Enter country or region"
+                  @blur="touchFormField('country')"
+                />
+              </div>
+              <p v-if="formTouched.country && formErrors.country" class="form-field__message form-field__message--error" role="alert">
+                {{ formErrors.country }}
+              </p>
+            </div>
+
+            <!-- Email Field -->
+            <div class="form-field" :class="{ 'form-field--error': formTouched.contactEmail && formErrors.contactEmail }">
+              <label for="supplier-email" class="form-field__label">Contact email</label>
+              <div class="form-field__input-wrapper">
+                <input
+                  id="supplier-email"
+                  v-model="form.contactEmail"
+                  class="form-field__input"
+                  type="email"
+                  autocomplete="off"
+                  :class="{ 'form-field__input--error': formTouched.contactEmail && formErrors.contactEmail }"
+                  placeholder="contact@supplier.com"
+                  @blur="touchFormField('contactEmail')"
+                />
+                <span
+                  v-if="formTouched.contactEmail && !formErrors.contactEmail && form.contactEmail"
+                  class="form-field__icon form-field__icon--success"
+                  aria-hidden="true"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span
+                  v-else-if="formTouched.contactEmail && formErrors.contactEmail"
+                  class="form-field__icon form-field__icon--error"
+                  aria-hidden="true"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 8v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="12" cy="16" r="1" fill="currentColor"/>
+                  </svg>
+                </span>
+              </div>
+              <p v-if="formTouched.contactEmail && formErrors.contactEmail" class="form-field__message form-field__message--error" role="alert">
+                {{ formErrors.contactEmail }}
+              </p>
+            </div>
+
+            <!-- Emission Factor Field -->
+            <div class="form-field" :class="{ 'form-field--error': formTouched.emissionFactorPerUnit && formErrors.emissionFactorPerUnit }">
+              <label for="supplier-emission" class="form-field__label">
+                Emission factor per unit
+              </label>
+              <div class="form-field__input-wrapper">
+                <input
+                  id="supplier-emission"
+                  v-model="form.emissionFactorPerUnit"
+                  class="form-field__input"
+                  type="text"
+                  inputmode="decimal"
+                  :class="{ 'form-field__input--error': formTouched.emissionFactorPerUnit && formErrors.emissionFactorPerUnit }"
+                  placeholder="e.g., 0.5"
+                  @blur="touchFormField('emissionFactorPerUnit')"
+                />
+                <span
+                  v-if="formTouched.emissionFactorPerUnit && !formErrors.emissionFactorPerUnit && form.emissionFactorPerUnit"
+                  class="form-field__icon form-field__icon--success"
+                  aria-hidden="true"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span
+                  v-else-if="formTouched.emissionFactorPerUnit && formErrors.emissionFactorPerUnit"
+                  class="form-field__icon form-field__icon--error"
+                  aria-hidden="true"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 8v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="12" cy="16" r="1" fill="currentColor"/>
+                  </svg>
+                </span>
+              </div>
+              <p v-if="formTouched.emissionFactorPerUnit && formErrors.emissionFactorPerUnit" class="form-field__message form-field__message--error" role="alert">
+                {{ formErrors.emissionFactorPerUnit }}
+              </p>
+              <p v-else class="form-field__message form-field__message--hint">
+                Optional: emissions per production unit
+              </p>
+            </div>
+
+            <!-- Environmental Certification Checkbox -->
             <label class="field field--inline">
               <input v-model="form.hasEnvironmentalCertification" type="checkbox" />
               <span class="field__label">Has environmental certification</span>
             </label>
+
             <div class="dialog__actions">
               <button type="button" class="btn btn--ghost" @click="closeDialog">Cancel</button>
               <button type="submit" class="btn btn--primary">Save</button>
@@ -522,6 +746,107 @@ watch(
   gap: 0.85rem;
 }
 
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* Form Field Styles */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-field__label {
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: #4a5c4a;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.form-field__required {
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 0.9em;
+}
+
+.form-field__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.form-field__input {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1.5px solid #b5c4b5;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: #1a2e1a;
+  background: #fafcf9;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  outline: none;
+}
+
+.form-field__input:focus {
+  border-color: #528951;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(82, 137, 81, 0.12);
+}
+
+.form-field__input--error {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.form-field__input--error:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.form-field__input--success {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.form-field__icon {
+  position: absolute;
+  right: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.form-field__icon--success {
+  color: #16a34a;
+}
+
+.form-field__icon--error {
+  color: #dc2626;
+}
+
+.form-field__message {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.form-field__message--error {
+  color: #dc2626;
+}
+
+.form-field__message--hint {
+  color: #6b7d6b;
+}
+
+/* Inline field (for checkbox) */
 .field {
   display: flex;
   flex-direction: column;
@@ -536,22 +861,42 @@ watch(
 
 .field__label {
   font-size: 0.85rem;
-  font-weight: 650;
+  font-weight: 600;
   color: #4a5c4a;
+  cursor: pointer;
 }
 
-.field__input {
-  padding: 0.45rem 0.55rem;
-  border: 1px solid #b5c4b5;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  font-family: inherit;
+/* Error shake animation */
+.form-field--error .form-field__input {
+  animation: shake 0.4s ease-in-out;
 }
 
-.dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+/* Table skeleton loading */
+.skeleton-table-cell {
+  height: 1rem;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #e8efe8 0%, #d4e4d4 40%, #e8efe8 80%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeleton-cell--full {
+  height: 1rem;
+  width: 100%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 </style>

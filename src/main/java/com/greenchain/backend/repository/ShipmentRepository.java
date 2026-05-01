@@ -1,6 +1,8 @@
 package com.greenchain.backend.repository;
 
 import com.greenchain.backend.model.Shipment;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import java.util.List;
@@ -19,5 +21,8 @@ public interface ShipmentRepository extends JpaRepository<Shipment, Long> {
     @Query("SELECT COUNT(DISTINCT s.supplier.id) FROM Shipment s WHERE s.supplier IS NOT NULL")
     Long countDistinctSuppliersInShipments();
 
-    // We'll implement these methods in the service layer instead of using HQL
+    // Pagination support
+    Page<Shipment> findAll(Pageable pageable);
+
+    Page<Shipment> findBySupplierUserUsername(String username, Pageable pageable);
 }

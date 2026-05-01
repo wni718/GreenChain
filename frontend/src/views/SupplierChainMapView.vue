@@ -6,6 +6,10 @@ const globeEl = ref(null)
 let globeInstance = null
 let resizeHandler = null
 
+// Loading state
+const loading = ref(true)
+const errorMessage = ref('')
+
 // Data from backend
 const suppliers = ref([])
 const routes = ref([])
@@ -229,11 +233,13 @@ const transportModeMap = {
 
 // Fetch data from backend
 async function fetchData() {
+  loading.value = true
+  errorMessage.value = ''
   try {
     // Fetch suppliers
     const suppliersResponse = await fetch('/api/suppliers')
     const suppliersData = await suppliersResponse.json()
-    
+
     // Enhance suppliers with geographic data
     const enhancedSuppliers = suppliersData.map(supplier => {
       const geoData = supplierGeoData[supplier.country] || { city: 'Unknown', lat: 0, lng: 0, industry: 'Unknown' }
@@ -249,11 +255,11 @@ async function fetchData() {
         type: 'supplier'
       }
     })
-    
+
     // Fetch shipments with coordinates from backend
     const shipmentsResponse = await fetch('/api/shipments/with-coordinates')
     const shipmentsData = await shipmentsResponse.json()
-    
+
     // Convert shipments to routes using actual origin/destination coordinates from backend
     // Fall back to cityCoordinates if backend doesn't provide coordinates
     const shipmentRoutes = shipmentsData.map(shipment => {
@@ -261,7 +267,7 @@ async function fetchData() {
       let startLng = shipment.originLng
       let endLat = shipment.destLat
       let endLng = shipment.destLng
-      
+
       // Fall back to cityCoordinates if backend coordinates are missing or zero
       if ((!startLat || startLat === 0) && shipment.origin) {
         const originCoords = cityCoordinates[shipment.origin]
@@ -277,7 +283,7 @@ async function fetchData() {
           endLng = destCoords.lng
         }
       }
-      
+
       return {
         id: shipment.id,
         startLat: startLat || 0,
@@ -292,17 +298,17 @@ async function fetchData() {
         mode: shipment.transportModeName || shipment.transportMode || 'Unknown'
       }
     })
-    
+
     routes.value = shipmentRoutes
-    
+
     // Extract unique origins and destinations from shipments
     const locationMap = new Map()
-    
+
     // Add origins
     shipmentsData.forEach(shipment => {
       let lat = shipment.originLat
       let lng = shipment.originLng
-      
+
       // Fall back to cityCoordinates if backend coordinates are missing or zero
       if ((!lat || lat === 0) && shipment.origin) {
         const originCoords = cityCoordinates[shipment.origin]
@@ -311,7 +317,7 @@ async function fetchData() {
           lng = originCoords.lng
         }
       }
-      
+
       if (shipment.origin && lat && lng) {
         locationMap.set(shipment.origin, {
           name: shipment.origin,
@@ -322,12 +328,12 @@ async function fetchData() {
         })
       }
     })
-    
+
     // Add destinations
     shipmentsData.forEach(shipment => {
       let lat = shipment.destLat
       let lng = shipment.destLng
-      
+
       // Fall back to cityCoordinates if backend coordinates are missing or zero
       if ((!lat || lat === 0) && shipment.destination) {
         const destCoords = cityCoordinates[shipment.destination]
@@ -336,7 +342,7 @@ async function fetchData() {
           lng = destCoords.lng
         }
       }
-      
+
       if (shipment.destination && lat && lng) {
         locationMap.set(shipment.destination, {
           name: shipment.destination,
@@ -347,11 +353,11 @@ async function fetchData() {
         })
       }
     })
-    
+
     // Convert locationMap values to array and add to suppliers
     const locationPoints = Array.from(locationMap.values())
     suppliers.value = [...enhancedSuppliers, ...locationPoints]
-    
+
     // Reinitialize globe with new data
     if (globeInstance) {
       globeEl.value.innerHTML = ''
@@ -359,8 +365,11 @@ async function fetchData() {
     }
   } catch (error) {
     console.error('Error fetching data:', error)
+    errorMessage.value = 'Failed to load map data. Please check your connection and try again.'
     // Fallback to sample data if API fails
     useSampleData()
+  } finally {
+    loading.value = false
   }
 }
 
@@ -719,11 +728,31 @@ onBeforeUnmount(() => {
       <h1 class="page__title">Supplier Chain Map</h1>
       <p class="page__description">Interactive visualization of global supply chain network</p>
     </header>
-    
+
     <div class="globe-container">
-      <div ref="globeEl" class="globe-canvas" />
-      
-      <div class="map-legend">
+      <!-- Loading skeleton -->
+      <div v-if="loading" class="globe-skeleton">
+        <div class="loading-spinner"></div>
+        <p class="skeleton-text">Loading...</p>
+      </div>
+
+      <!-- Error message -->
+      <div v-else-if="errorMessage" class="globe-error">
+        <div class="error-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <p class="error-message">{{ errorMessage }}</p>
+        <button class="retry-btn" @click="fetchData">Retry</button>
+      </div>
+
+      <!-- Globe -->
+      <div v-show="!loading && !errorMessage" ref="globeEl" class="globe-canvas" />
+
+      <div v-if="!loading && !errorMessage" class="map-legend">
         <h3>Legend</h3>
         <div class="legend-item">
           <span class="legend-dot supplier-dot"></span>
@@ -773,20 +802,17 @@ onBeforeUnmount(() => {
 .globe-container {
   flex: 1;
   position: relative;
+  width: 100%;
+  min-height: 500px;
   background: radial-gradient(circle at 30% 20%, #f5fff6 0%, #eef7f0 40%, #e6f0e8 100%);
   max-width: 1280px;
   margin: 0 auto;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .globe-canvas {
   width: 100%;
   height: 100%;
-  min-height: 400px;
-  max-height: 700px;
+  min-height: 500px;
 }
 
 .map-legend {
@@ -847,9 +873,88 @@ onBeforeUnmount(() => {
     margin: 1rem;
     max-width: none;
   }
-  
+
   .globe-canvas {
     min-height: 500px;
   }
+}
+
+/* Globe loading skeleton */
+.globe-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  background: radial-gradient(circle at 30% 20%, #f5fff6 0%, #eef7f0 40%, #e6f0e8 100%);
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e8efe8;
+  border-top-color: #34c759;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skeleton-text {
+  margin-top: 1.5rem;
+  font-size: 1rem;
+  color: #6b7d6b;
+}
+
+/* Globe error state */
+.globe-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  text-align: center;
+}
+
+.error-icon {
+  width: 48px;
+  height: 48px;
+  color: #dc2626;
+  margin-bottom: 1rem;
+}
+
+.error-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.error-message {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  color: #991b1b;
+}
+
+.retry-btn {
+  padding: 0.5rem 1.5rem;
+  background: #5f795f;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.retry-btn:hover {
+  background: #4a5c4a;
 }
 </style>

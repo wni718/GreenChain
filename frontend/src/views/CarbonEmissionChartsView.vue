@@ -2,14 +2,17 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { useAuth } from '../composables/useAuth'
+import { useApiCache } from '../composables/useApiCache'
 import { formatErrorBody } from '../utils/apiError'
 import {
   getEmissionsByDateOption,
   getEmissionsByTransportModeOption,
   getTransportModeFactorsOption,
 } from '../utils/chartConfig'
+import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const { apiAuthHeader, currentUser } = useAuth()
+const { get: getCache, set: setCache } = useApiCache()
 
 const isLoggedIn = computed(() => Boolean(currentUser.value?.username))
 
@@ -67,48 +70,73 @@ function onResize() {
   transportModeChart?.resize()
 }
 
-async function loadSummary() {
+async function loadSummary(useCache = true) {
   if (!isLoggedIn.value) return
   loading.value = true
   message.value = ''
+
+  // Try cache first for summary
+  if (useCache) {
+    const cachedSummary = getCache('/api/dashboard/summary')
+    const cachedTransportModes = getCache('/api/transport-modes')
+    if (cachedSummary && cachedTransportModes) {
+      summary.value = cachedSummary.data
+      transportModes.value = cachedTransportModes.data
+      loading.value = false
+      await nextTick()
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 50))
+      applyChartOptions()
+      return
+    }
+  }
+
   try {
     // Fetch dashboard summary and transport modes in parallel
     const [summaryRes, transportModesRes] = await Promise.all([
       apiFetch('/api/dashboard/summary'),
       apiFetch('/api/transport-modes')
     ])
-    
+
     // Process summary response
     const summaryText = await summaryRes.text()
     if (!summaryRes.ok) {
       message.value = formatErrorBody(summaryRes.status, summaryText)
       summary.value = null
       disposeCharts()
+      loading.value = false
       return
     }
-    summary.value = summaryText ? JSON.parse(summaryText) : null
-    
+    const summaryData = summaryText ? JSON.parse(summaryText) : null
+    summary.value = summaryData
+    setCache('/api/dashboard/summary', summaryData)
+
     // Process transport modes response
     const transportModesText = await transportModesRes.text()
+    let transportModesData = []
     if (transportModesRes.ok) {
       try {
-        transportModes.value = transportModesText ? JSON.parse(transportModesText) : []
+        transportModesData = transportModesText ? JSON.parse(transportModesText) : []
       } catch {
-        transportModes.value = []
+        transportModesData = []
       }
-    } else {
-      transportModes.value = []
     }
-    
+    transportModes.value = transportModesData
+    setCache('/api/transport-modes', transportModesData)
+
+    // Wait for loading to be false so chart containers are rendered
+    loading.value = false
+    // Give DOM time to update and containers to become visible
     await nextTick()
     await nextTick()
+    // Small delay to ensure containers are fully rendered
+    await new Promise(resolve => setTimeout(resolve, 50))
     applyChartOptions()
   } catch {
     message.value = 'Cannot reach the server. Check backend and Vite proxy for /api.'
     summary.value = null
     transportModes.value = []
     disposeCharts()
-  } finally {
     loading.value = false
   }
 }
@@ -160,11 +188,25 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <div class="charts">
-        <div ref="lineEl" class="chart" aria-label="Line chart of emissions by date" />
-        <div ref="pieEl" class="chart" aria-label="Pie chart of emissions by mode" />
-        <div ref="transportModeEl" class="chart" aria-label="Bar chart of transport mode emission factors" />
-      </div>
+      <!-- Loading skeleton -->
+      <template v-if="loading">
+        <SkeletonLoader type="chart" />
+        <div class="charts-row">
+          <SkeletonLoader type="chart" />
+          <SkeletonLoader type="chart" />
+        </div>
+      </template>
+
+      <!-- Charts -->
+      <template v-else>
+        <div class="charts">
+          <div ref="lineEl" class="chart" aria-label="Line chart of emissions by date" />
+          <div class="charts-row">
+            <div ref="pieEl" class="chart" aria-label="Pie chart of emissions by mode" />
+            <div ref="transportModeEl" class="chart" aria-label="Bar chart of transport mode emission factors" />
+          </div>
+        </div>
+      </template>
     </template>
   </div>
 </template>
@@ -228,6 +270,18 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .charts-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .chart {
