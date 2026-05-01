@@ -18,7 +18,12 @@ const loading = ref(false)
 const message = ref('')
 const messageKind = ref('err')
 
-const certifiedOnly = ref(false)
+const certifiedOnly = ref(sessionStorage.getItem('supplier_certified_only') === 'true')
+
+// Persist certifiedOnly filter to sessionStorage
+watch(certifiedOnly, (val) => {
+  sessionStorage.setItem('supplier_certified_only', String(val))
+})
 
 const dialogOpen = ref(false)
 const editingId = ref(null)
