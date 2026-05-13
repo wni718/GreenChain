@@ -319,7 +319,7 @@ watch(
           Certified suppliers only
         </label>
         <div class="toolbar-actions">
-          <button type="button" class="btn btn--ghost" :disabled="loading" @click="loadList()">
+          <button type="button" class="btn btn--ghost" :disabled="loading" @click="loadList">
             {{ loading ? 'Loading…' : 'Refresh' }}
           </button>
           <button v-if="canModify" type="button" class="btn btn--primary" @click="openCreate">New supplier</button>

@@ -174,18 +174,10 @@ public class AuditLogController {
         }
 
         String reportType = request.getOrDefault("reportType", "UNKNOWN");
-        
-        AuditLog.EntityType entityType;
-        try {
-            entityType = AuditLog.EntityType.valueOf(reportType.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            // If reportType is not a valid EntityType (e.g., "CSV", "PDF"), use a default
-            entityType = AuditLog.EntityType.SHIPMENT;
-        }
 
         AuditLog log = auditLogService.logExport(
                 principal.getName(),
-                entityType,
+                AuditLog.EntityType.valueOf(reportType.toUpperCase()),
                 "Exported " + reportType + " report",
                 null
         );

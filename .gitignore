@@ -36,3 +36,23 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Build
+dist/
+frontend/dist/
+
+# Vite cache
+.vite/
+
+# IDE
+.idea/
+
+# Logs
+*.log
+
+# OS
+Thumbs.db

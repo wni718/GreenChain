@@ -25,6 +25,4 @@ public interface ShipmentRepository extends JpaRepository<Shipment, Long> {
     Page<Shipment> findAll(Pageable pageable);
 
     Page<Shipment> findBySupplierUserUsername(String username, Pageable pageable);
-
-    List<Shipment> findTop10ByOrderByShipmentDateDesc();
 }

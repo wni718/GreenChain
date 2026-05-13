@@ -83,7 +83,7 @@ public class AuditLogService {
 
     @Transactional
     public AuditLog logExport(String username, EntityType entityType, String description, String ipAddress) {
-        AuditLog log = new AuditLog(username, Action.EXPORT, entityType, 0L);
+        AuditLog log = new AuditLog(username, Action.EXPORT, entityType, null);
         log.setDescription(String.format("Exported %s report", entityType.name().toLowerCase()));
         log.setIpAddress(ipAddress);
         return auditLogRepository.save(log);

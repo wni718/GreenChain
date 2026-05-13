@@ -30,14 +30,6 @@ const messageKind = ref('err')
 const editMode = ref(false)
 const editForm = ref({})
 
-// Admin management state
-const allSuppliers = ref([])
-const allShipments = ref([])
-const adminEditMode = ref(false)
-const adminEditingId = ref(null)
-const adminEditForm = ref({})
-const adminEditType = ref('')
-
 // Transport recommendation state
 const showRecommendation = ref(false)
 const recommendation = ref(null)
@@ -305,119 +297,6 @@ function onLogout() {
   router.push({ name: 'home' })
 }
 
-// Admin management functions
-async function loadAllSuppliers() {
-  loading.value = true
-  try {
-    const res = await apiFetch('/api/suppliers?page=0&size=1000')
-    const text = await res.text()
-    if (!res.ok) {
-      setMsg('Failed to load suppliers')
-      return
-    }
-    const data = text ? JSON.parse(text) : {}
-    allSuppliers.value = data.content || []
-  } catch {
-    setMsg('Failed to load suppliers')
-  } finally {
-    loading.value = false
-  }
-}
-
-async function loadAllShipments() {
-  loading.value = true
-  try {
-    const res = await apiFetch('/api/shipments?page=0&size=1000')
-    const text = await res.text()
-    if (!res.ok) {
-      setMsg('Failed to load shipments')
-      return
-    }
-    const data = text ? JSON.parse(text) : {}
-    allShipments.value = data.content || []
-  } catch {
-    setMsg('Failed to load shipments')
-  } finally {
-    loading.value = false
-  }
-}
-
-function openAdminEdit(type, item) {
-  adminEditType.value = type
-  adminEditingId.value = item.id
-  adminEditForm.value = { ...item }
-  adminEditMode.value = true
-}
-
-function closeAdminEdit() {
-  adminEditMode.value = false
-  adminEditingId.value = null
-  adminEditForm.value = {}
-  adminEditType.value = ''
-}
-
-async function saveAdminEdit() {
-  loading.value = true
-  try {
-    if (adminEditType.value === 'supplier') {
-      const res = await apiFetch(`/api/suppliers/${adminEditingId.value}`, {
-        method: 'PUT',
-        body: JSON.stringify(adminEditForm.value)
-      })
-      if (!res.ok) {
-        setMsg('Failed to update supplier')
-        return
-      }
-      setMsg('Supplier updated successfully', 'ok')
-      await loadAllSuppliers()
-    } else if (adminEditType.value === 'shipment') {
-      const res = await apiFetch(`/api/shipments/${adminEditingId.value}`, {
-        method: 'PUT',
-        body: JSON.stringify(adminEditForm.value)
-      })
-      if (!res.ok) {
-        setMsg('Failed to update shipment')
-        return
-      }
-      setMsg('Shipment updated successfully', 'ok')
-      await loadAllShipments()
-    }
-    closeAdminEdit()
-  } catch {
-    setMsg('Failed to save changes')
-  } finally {
-    loading.value = false
-  }
-}
-
-async function deleteAdminItem(type, item) {
-  if (!window.confirm(`Delete this ${type}? This action cannot be undone.`)) return
-  loading.value = true
-  try {
-    if (type === 'supplier') {
-      const res = await apiFetch(`/api/suppliers/${item.id}`, { method: 'DELETE' })
-      if (!res.ok && res.status !== 204) {
-        setMsg('Failed to delete supplier')
-        return
-      }
-      setMsg('Supplier deleted successfully', 'ok')
-      await loadAllSuppliers()
-    } else if (type === 'shipment') {
-      const res = await apiFetch(`/api/shipments/${item.id}`, { method: 'DELETE' })
-      if (!res.ok) {
-        setMsg('Failed to delete shipment')
-        return
-      }
-      setMsg('Shipment deleted successfully', 'ok')
-      await loadAllShipments()
-    }
-  } catch {
-    setMsg('Failed to delete')
-  } finally {
-    loading.value = false
-  }
-}
-
 /** Backfill email and/or role from API when missing in session */
 onMounted(async () => {
   const u = currentUser.value
@@ -428,9 +307,6 @@ onMounted(async () => {
     if (u.role === 'SUPPLIER') {
       await loadSupplierInfo()
       await loadSupplierShipments()
-    } else if (u.role === 'ADMIN') {
-      await loadAllSuppliers()
-      await loadAllShipments()
     }
     return
   }
@@ -447,9 +323,6 @@ onMounted(async () => {
     if (updatedUser.role === 'SUPPLIER') {
       await loadSupplierInfo()
       await loadSupplierShipments()
-    } else if (updatedUser.role === 'ADMIN') {
-      await loadAllSuppliers()
-      await loadAllShipments()
     }
   } catch {
     /* ignore */
@@ -673,151 +546,6 @@ onMounted(async () => {
           </div>
         </div>
       </div>
-
-      <!-- Admin Management Section -->
-      <div v-if="currentUser.role === 'ADMIN'" class="supplier-section">
-        <h2 class="supplier-section__title">Admin Management</h2>
-
-        <p v-if="message" class="supplier-section__alert" :class="{ 'supplier-section__alert--ok': messageKind === 'ok' }" role="status">
-          {{ message }}
-        </p>
-
-        <!-- All Suppliers Section -->
-        <div class="admin-manage-section">
-          <h3 class="shipment-list__title">All Suppliers ({{ allSuppliers.length }})</h3>
-          <div v-if="allSuppliers.length === 0" class="empty-state">
-            No suppliers found.
-          </div>
-          <div v-else class="shipment-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Name</th>
-                  <th>Country</th>
-                  <th>Email</th>
-                  <th>Certified</th>
-                  <th>Emission Factor</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(supplier, index) in allSuppliers" :key="supplier.id">
-                  <td>{{ index + 1 }}</td>
-                  <td>{{ supplier.name || '—' }}</td>
-                  <td>{{ supplier.country || '—' }}</td>
-                  <td>{{ supplier.contactEmail || '—' }}</td>
-                  <td>{{ supplier.hasEnvironmentalCertification ? 'Yes' : 'No' }}</td>
-                  <td>{{ supplier.emissionFactorPerUnit != null ? supplier.emissionFactorPerUnit : '—' }}</td>
-                  <td>
-                    <button type="button" class="link-btn" @click="openAdminEdit('supplier', supplier)">Edit</button>
-                    <button type="button" class="link-btn link-btn--danger" @click="deleteAdminItem('supplier', supplier)">Delete</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- All Shipments Section -->
-        <div class="admin-manage-section">
-          <h3 class="shipment-list__title">All Shipments ({{ allShipments.length }})</h3>
-          <div v-if="allShipments.length === 0" class="empty-state">
-            No shipments found.
-          </div>
-          <div v-else class="shipment-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Supplier</th>
-                  <th>Origin</th>
-                  <th>Destination</th>
-                  <th>Mode</th>
-                  <th>Date</th>
-                  <th>CO2e (kg)</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(shipment, index) in allShipments" :key="shipment.id">
-                  <td>{{ index + 1 }}</td>
-                  <td>{{ shipment.supplierName || shipment.supplier?.name || '—' }}</td>
-                  <td>{{ shipment.origin || '—' }}</td>
-                  <td>{{ shipment.destination || '—' }}</td>
-                  <td>{{ shipment.transportMode?.displayName || shipment.transportMode?.mode || shipment.transportModeName || '—' }}</td>
-                  <td>{{ shipment.shipmentDate || '—' }}</td>
-                  <td>{{ shipment.calculatedCarbonEmission ? shipment.calculatedCarbonEmission.toFixed(2) : '—' }}</td>
-                  <td>
-                    <button type="button" class="link-btn" @click="openAdminEdit('shipment', shipment)">Edit</button>
-                    <button type="button" class="link-btn link-btn--danger" @click="deleteAdminItem('shipment', shipment)">Delete</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Admin Edit Dialog -->
-        <div v-if="adminEditMode" class="dialog-backdrop" role="presentation" @click.self="closeAdminEdit">
-          <div class="dialog" role="dialog" aria-modal="true">
-            <h2 class="dialog__title">Edit {{ adminEditType }}</h2>
-            <form class="dialog__form" @submit.prevent="saveAdminEdit">
-              <template v-if="adminEditType === 'supplier'">
-                <div class="form-field">
-                  <label class="form-field__label">Name</label>
-                  <input v-model="adminEditForm.name" class="form-field__input" type="text" />
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label">Country</label>
-                  <input v-model="adminEditForm.country" class="form-field__input" type="text" />
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label">Contact Email</label>
-                  <input v-model="adminEditForm.contactEmail" class="form-field__input" type="email" />
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label">Emission Factor per Unit</label>
-                  <input v-model="adminEditForm.emissionFactorPerUnit" class="form-field__input" type="number" step="0.01" />
-                </div>
-                <div class="form-field">
-                  <label class="form-checkbox">
-                    <input v-model="adminEditForm.hasEnvironmentalCertification" type="checkbox" />
-                    <span>Has Environmental Certification</span>
-                  </label>
-                </div>
-              </template>
-              <template v-else-if="adminEditType === 'shipment'">
-                <div class="form-field">
-                  <label class="form-field__label">Origin</label>
-                  <input v-model="adminEditForm.origin" class="form-field__input" type="text" />
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label">Destination</label>
-                  <input v-model="adminEditForm.destination" class="form-field__input" type="text" />
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label">Distance (km)</label>
-                  <input v-model="adminEditForm.distanceKm" class="form-field__input" type="number" step="0.1" />
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label">Cargo Weight (tons)</label>
-                  <input v-model="adminEditForm.cargoWeightTons" class="form-field__input" type="number" step="0.1" />
-                </div>
-                <div class="form-field">
-                  <label class="form-field__label">Transport Mode</label>
-                  <input v-model="adminEditForm.transportMode" class="form-field__input" type="text" />
-                </div>
-              </template>
-              <div class="form-actions">
-                <button type="button" class="btn btn--ghost" @click="closeAdminEdit">Cancel</button>
-                <button type="submit" class="btn btn--primary" :disabled="loading">Save</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-
     </section>
   </main>
 </template>

@@ -1,9 +1,6 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, reactive } from 'vue'
 import Globe from 'globe.gl'
-import { useAuth } from '../composables/useAuth'
-
-const { apiAuthHeader } = useAuth()
 
 const globeEl = ref(null)
 let globeInstance = null
@@ -238,10 +235,9 @@ const transportModeMap = {
 async function fetchData() {
   loading.value = true
   errorMessage.value = ''
-  const authHeader = apiAuthHeader()
   try {
     // Fetch suppliers
-    const suppliersResponse = await fetch('/api/suppliers', { headers: authHeader })
+    const suppliersResponse = await fetch('/api/suppliers')
     const suppliersData = await suppliersResponse.json()
 
     // Enhance suppliers with geographic data
@@ -261,7 +257,7 @@ async function fetchData() {
     })
 
     // Fetch shipments with coordinates from backend
-    const shipmentsResponse = await fetch('/api/shipments/with-coordinates', { headers: authHeader })
+    const shipmentsResponse = await fetch('/api/shipments/with-coordinates')
     const shipmentsData = await shipmentsResponse.json()
 
     // Convert shipments to routes using actual origin/destination coordinates from backend
