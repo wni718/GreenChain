@@ -1,6 +1,8 @@
 package com.greenchain.backend.controller;
 
+import com.greenchain.backend.dto.PageResponse;
 import com.greenchain.backend.dto.ShipmentDTO;
+import com.greenchain.backend.model.AuditLog;
 import com.greenchain.backend.model.Shipment;
 import com.greenchain.backend.model.Supplier;
 import com.greenchain.backend.model.TransportMode;
@@ -8,9 +10,14 @@ import com.greenchain.backend.model.User;
 import com.greenchain.backend.repository.ShipmentRepository;
 import com.greenchain.backend.repository.SupplierRepository;
 import com.greenchain.backend.repository.UserRepository;
+import com.greenchain.backend.service.AuditLogService;
 import com.greenchain.backend.service.CarbonCalculationService;
 import com.greenchain.backend.service.GeoLocationService;
+import com.greenchain.backend.util.HttpUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +30,9 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/shipments")
 public class ShipmentController {
+
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_PAGE_SIZE = 100;
 
     @Autowired
     private ShipmentRepository shipmentRepository;
@@ -39,15 +49,65 @@ public class ShipmentController {
     @Autowired
     private GeoLocationService geoLocationService;
 
+    @Autowired
+    private AuditLogService auditLogService;
+
     @GetMapping
-    public List<Shipment> getAllShipments() {
-        return shipmentRepository.findAll();
+    public ResponseEntity<?> getAllShipments(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false, defaultValue = "desc") String sortDir) {
+        if (page != null && size != null) {
+            int pageNum = Math.max(0, page);
+            int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
+
+            Sort sort = Sort.by(sortDir.equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC,
+                    sortBy != null ? sortBy : "id");
+            PageRequest pageRequest = PageRequest.of(pageNum, pageSize, sort);
+
+            Page<Shipment> shipmentPage = shipmentRepository.findAll(pageRequest);
+            PageResponse<Shipment> response = new PageResponse<>(
+                    shipmentPage.getContent(),
+                    shipmentPage.getNumber(),
+                    shipmentPage.getSize(),
+                    shipmentPage.getTotalElements()
+            );
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.ok(shipmentRepository.findAll());
+        }
     }
 
     @GetMapping("/with-coordinates")
-    public List<ShipmentDTO> getAllShipmentsWithCoordinates() {
-        List<Shipment> shipments = shipmentRepository.findAll();
-        return shipments.stream().map(this::convertToDTO).collect(Collectors.toList());
+    public ResponseEntity<?> getAllShipmentsWithCoordinates(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        List<Shipment> shipments;
+        long totalElements;
+
+        if (page != null && size != null) {
+            int pageNum = Math.max(0, page);
+            int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
+            PageRequest pageRequest = PageRequest.of(pageNum, pageSize);
+            Page<Shipment> shipmentPage = shipmentRepository.findAll(pageRequest);
+            shipments = shipmentPage.getContent();
+            totalElements = shipmentPage.getTotalElements();
+
+            List<ShipmentDTO> dtos = shipments.stream().map(this::convertToDTO).collect(Collectors.toList());
+            PageResponse<ShipmentDTO> response = new PageResponse<>(
+                    dtos,
+                    shipmentPage.getNumber(),
+                    shipmentPage.getSize(),
+                    totalElements
+            );
+            return ResponseEntity.ok(response);
+        } else {
+            shipments = shipmentRepository.findAll();
+            totalElements = shipments.size();
+            List<ShipmentDTO> dtos = shipments.stream().map(this::convertToDTO).collect(Collectors.toList());
+            return ResponseEntity.ok(dtos);
+        }
     }
 
     private ShipmentDTO convertToDTO(Shipment shipment) {
@@ -114,6 +174,16 @@ public class ShipmentController {
 
         try {
             Shipment createdShipment = carbonService.calculateShipmentEmission(shipment);
+
+            // Audit log for create
+            auditLogService.logCreate(
+                currentUser.getUsername(),
+                AuditLog.EntityType.SHIPMENT,
+                createdShipment.getId(),
+                createdShipment,
+                HttpUtils.getClientIpAddress()
+            );
+
             return ResponseEntity.ok(createdShipment);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
@@ -166,7 +236,26 @@ public class ShipmentController {
         }
 
         try {
+            // Store old value for audit
+            Shipment oldShipment = shipmentRepository.findById(id).orElse(null);
+
             Shipment updatedShipment = applyShipmentUpdate(id, body);
+
+            // Audit log for update
+            if (oldShipment != null && principal != null) {
+                User currentUser = userRepository.findByUsername(principal.getName()).orElse(null);
+                if (currentUser != null) {
+                    auditLogService.logUpdate(
+                        currentUser.getUsername(),
+                        AuditLog.EntityType.SHIPMENT,
+                        updatedShipment.getId(),
+                        oldShipment,
+                        updatedShipment,
+                        HttpUtils.getClientIpAddress()
+                    );
+                }
+            }
+
             return ResponseEntity.ok(updatedShipment);
         } catch (ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).build();
@@ -186,7 +275,26 @@ public class ShipmentController {
         }
 
         try {
+            // Store old value for audit
+            Shipment oldShipment = shipmentRepository.findById(id).orElse(null);
+
             Shipment updatedShipment = applyShipmentUpdate(id, body);
+
+            // Audit log for update
+            if (oldShipment != null && principal != null) {
+                User currentUser = userRepository.findByUsername(principal.getName()).orElse(null);
+                if (currentUser != null) {
+                    auditLogService.logUpdate(
+                        currentUser.getUsername(),
+                        AuditLog.EntityType.SHIPMENT,
+                        updatedShipment.getId(),
+                        oldShipment,
+                        updatedShipment,
+                        HttpUtils.getClientIpAddress()
+                    );
+                }
+            }
+
             return ResponseEntity.ok(updatedShipment);
         } catch (ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).build();
@@ -204,12 +312,42 @@ public class ShipmentController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        if (!shipmentRepository.existsById(id)) {
+        Shipment shipmentToDelete = shipmentRepository.findById(id).orElse(null);
+        if (shipmentToDelete == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 
+        User currentUser = userRepository.findByUsername(principal.getName()).orElse(null);
+
         shipmentRepository.deleteById(id);
+
+        // Audit log for delete
+        if (currentUser != null) {
+            auditLogService.logDelete(
+                currentUser.getUsername(),
+                AuditLog.EntityType.SHIPMENT,
+                id,
+                shipmentToDelete,
+                HttpUtils.getClientIpAddress()
+            );
+        }
+
         return ResponseEntity.noContent().build();
+    }
+
+    private Shipment cloneShipment(Shipment original) {
+        Shipment clone = new Shipment();
+        clone.setId(original.getId());
+        clone.setOrigin(original.getOrigin());
+        clone.setDestination(original.getDestination());
+        clone.setDistanceKm(original.getDistanceKm());
+        clone.setCargoWeightTons(original.getCargoWeightTons());
+        clone.setShipmentDate(original.getShipmentDate());
+        clone.setCalculatedCarbonEmission(original.getCalculatedCarbonEmission());
+        clone.setCalculationTimestamp(original.getCalculationTimestamp());
+        clone.setSupplier(original.getSupplier());
+        clone.setTransportMode(original.getTransportMode());
+        return clone;
     }
 
     private boolean hasShipmentPermission(Long shipmentId, Principal principal) {
@@ -241,13 +379,32 @@ public class ShipmentController {
     }
 
     @GetMapping("/my")
-    public ResponseEntity<List<Shipment>> getMyShipments(Principal principal) {
+    public ResponseEntity<?> getMyShipments(
+            Principal principal,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
         if (principal == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         String username = principal.getName();
-        List<Shipment> shipments = shipmentRepository.findBySupplierUserUsername(username);
-        return ResponseEntity.ok(shipments);
+
+        if (page != null && size != null) {
+            int pageNum = Math.max(0, page);
+            int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
+            PageRequest pageRequest = PageRequest.of(pageNum, pageSize);
+
+            Page<Shipment> shipmentPage = shipmentRepository.findBySupplierUserUsername(username, pageRequest);
+            PageResponse<Shipment> response = new PageResponse<>(
+                    shipmentPage.getContent(),
+                    shipmentPage.getNumber(),
+                    shipmentPage.getSize(),
+                    shipmentPage.getTotalElements()
+            );
+            return ResponseEntity.ok(response);
+        } else {
+            List<Shipment> shipments = shipmentRepository.findBySupplierUserUsername(username);
+            return ResponseEntity.ok(shipments);
+        }
     }
 
     @GetMapping("/test-permission/{id}")

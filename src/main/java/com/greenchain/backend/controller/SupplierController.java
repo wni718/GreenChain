@@ -1,10 +1,16 @@
 package com.greenchain.backend.controller;
 
+import com.greenchain.backend.dto.PageResponse;
 import com.greenchain.backend.model.Supplier;
 import com.greenchain.backend.model.User;
 import com.greenchain.backend.repository.SupplierRepository;
 import com.greenchain.backend.repository.UserRepository;
+import com.greenchain.backend.service.AuditLogService;
+import com.greenchain.backend.util.HttpUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,6 +22,9 @@ import java.util.List;
 @RequestMapping("/api/suppliers")
 public class SupplierController {
 
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_PAGE_SIZE = 100;
+
     @Autowired
     private SupplierRepository supplierRepository;
 
@@ -25,9 +34,36 @@ public class SupplierController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private AuditLogService auditLogService;
+
     @GetMapping
-    public List<Supplier> getAllSuppliers() {
-        return supplierRepository.findAll();
+    public ResponseEntity<?> getAllSuppliers(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false, defaultValue = "desc") String sortDir) {
+        if (page != null && size != null) {
+            // Return paginated response
+            int pageNum = Math.max(0, page);
+            int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
+
+            Sort sort = Sort.by(sortDir.equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC,
+                    sortBy != null ? sortBy : "id");
+            PageRequest pageRequest = PageRequest.of(pageNum, pageSize, sort);
+
+            Page<Supplier> supplierPage = supplierRepository.findAll(pageRequest);
+            PageResponse<Supplier> response = new PageResponse<>(
+                    supplierPage.getContent(),
+                    supplierPage.getNumber(),
+                    supplierPage.getSize(),
+                    supplierPage.getTotalElements()
+            );
+            return ResponseEntity.ok(response);
+        } else {
+            // Return all (backward compatibility)
+            return ResponseEntity.ok(supplierRepository.findAll());
+        }
     }
 
     @GetMapping("/{id}")
@@ -64,7 +100,18 @@ public class SupplierController {
             supplier.setUser(currentUser);
         }
 
-        return ResponseEntity.ok(supplierRepository.save(supplier));
+        Supplier savedSupplier = supplierRepository.save(supplier);
+
+        // Audit log for create
+        auditLogService.logCreate(
+            currentUser.getUsername(),
+            com.greenchain.backend.model.AuditLog.EntityType.SUPPLIER,
+            savedSupplier.getId(),
+            savedSupplier,
+            HttpUtils.getClientIpAddress()
+        );
+
+        return ResponseEntity.ok(savedSupplier);
     }
 
     @PutMapping("/{id}")
@@ -88,6 +135,9 @@ public class SupplierController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
+        // Store old value for audit
+        Supplier oldSupplier = cloneSupplier(existingSupplier);
+
         // Update only the fields that are provided, preserving the existing values
         if (supplier.getName() != null) {
             existingSupplier.setName(supplier.getName());
@@ -105,7 +155,31 @@ public class SupplierController {
             existingSupplier.setContactEmail(supplier.getContactEmail());
         }
 
-        return ResponseEntity.ok(supplierRepository.save(existingSupplier));
+        Supplier updatedSupplier = supplierRepository.save(existingSupplier);
+
+        // Audit log for update
+        auditLogService.logUpdate(
+            currentUser.getUsername(),
+            com.greenchain.backend.model.AuditLog.EntityType.SUPPLIER,
+            updatedSupplier.getId(),
+            oldSupplier,
+            updatedSupplier,
+            HttpUtils.getClientIpAddress()
+        );
+
+        return ResponseEntity.ok(updatedSupplier);
+    }
+
+    private Supplier cloneSupplier(Supplier original) {
+        Supplier clone = new Supplier();
+        clone.setId(original.getId());
+        clone.setName(original.getName());
+        clone.setCountry(original.getCountry());
+        clone.setHasEnvironmentalCertification(original.getHasEnvironmentalCertification());
+        clone.setEmissionFactorPerUnit(original.getEmissionFactorPerUnit());
+        clone.setContactEmail(original.getContactEmail());
+        clone.setUser(original.getUser());
+        return clone;
     }
 
     @DeleteMapping("/{id}")
@@ -128,13 +202,44 @@ public class SupplierController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
+        // Store for audit before delete
+        Supplier supplierToDelete = cloneSupplier(existingSupplier);
+        Long deletedId = existingSupplier.getId();
+
         supplierRepository.deleteById(id);
+
+        // Audit log for delete
+        auditLogService.logDelete(
+            currentUser.getUsername(),
+            com.greenchain.backend.model.AuditLog.EntityType.SUPPLIER,
+            deletedId,
+            supplierToDelete,
+            HttpUtils.getClientIpAddress()
+        );
+
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/certified")
-    public List<Supplier> getCertifiedSuppliers() {
-        return supplierRepository.findByHasEnvironmentalCertificationTrue();
+    public ResponseEntity<?> getCertifiedSuppliers(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        if (page != null && size != null) {
+            int pageNum = Math.max(0, page);
+            int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
+
+            PageRequest pageRequest = PageRequest.of(pageNum, pageSize);
+            Page<Supplier> supplierPage = supplierRepository.findByHasEnvironmentalCertificationTrue(pageRequest);
+            PageResponse<Supplier> response = new PageResponse<>(
+                    supplierPage.getContent(),
+                    supplierPage.getNumber(),
+                    supplierPage.getSize(),
+                    supplierPage.getTotalElements()
+            );
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.ok(supplierRepository.findByHasEnvironmentalCertificationTrue());
+        }
     }
 
     @GetMapping("/me")
@@ -216,6 +321,9 @@ public class SupplierController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 
+        // Store old value for audit
+        Supplier oldSupplier = cloneSupplier(supplier);
+
         if (supplierData.getName() != null)
             supplier.setName(supplierData.getName());
         if (supplierData.getCountry() != null)
@@ -227,7 +335,19 @@ public class SupplierController {
         if (supplierData.getHasEnvironmentalCertification() != null)
             supplier.setHasEnvironmentalCertification(supplierData.getHasEnvironmentalCertification());
 
-        return ResponseEntity.ok(supplierRepository.save(supplier));
+        Supplier updatedSupplier = supplierRepository.save(supplier);
+
+        // Audit log for update
+        auditLogService.logUpdate(
+            username,
+            com.greenchain.backend.model.AuditLog.EntityType.SUPPLIER,
+            updatedSupplier.getId(),
+            oldSupplier,
+            updatedSupplier,
+            HttpUtils.getClientIpAddress()
+        );
+
+        return ResponseEntity.ok(updatedSupplier);
     }
 
     @PostMapping("/generate-users")
