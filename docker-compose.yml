@@ -44,12 +44,12 @@ services:
       JAVA_OPTS: "-Xms512m -Xmx1024m -XX:+UseContainerSupport"
     ports:
       - "${APP_PORT:-8080}:8080"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 60s
     networks:
       - greenchain-network
 
