@@ -274,7 +274,242 @@ GreenChain 系统采用清晰的导航结构，方便用户快速访问各个功
 - **支持热线**：+1 (555) 123-4567
 - **支持时间**：周一至周五，9:00-18:00
 
-## 7. 总结
+## 7. 测试方法
+
+### 7.1 测试方法概述
+
+GreenChain 平台采用**混合测试方法**，结合自动化测试和手动测试，确保系统的功能完整性、安全性和用户体验。测试方法根据后端和前端的不同技术栈进行定制，以最大化测试效率和覆盖率。
+
+### 7.2 后端测试方法
+
+#### 7.2.1 单元测试（Unit Testing）
+
+**测试框架**：JUnit 5（Spring Boot Test 默认包含）
+
+**测试范围**：
+- 单个方法的逻辑验证
+- 数据模型验证
+- 业务规则验证
+- 边界条件测试
+
+**测试示例**：
+```java
+@Test
+void testCalculateCarbonEmission() {
+    Shipment shipment = new Shipment();
+    shipment.setDistanceKm(100.0);
+    shipment.setCargoWeightTons(10.0);
+    shipment.setTransportMode(new TransportMode("TRUCK", 0.2));
+    
+    double emission = carbonEmissionService.calculateEmission(shipment);
+    assertEquals(200.0, emission, 0.01);
+}
+```
+
+**测试执行**：
+```bash
+mvn test
+```
+
+#### 7.2.2 集成测试（Integration Testing）
+
+**测试框架**：Spring Boot Test
+
+**测试范围**：
+- API 端点测试
+- 数据库交互测试
+- 控制器与服务的集成测试
+- 多层架构集成测试
+
+**测试示例**：
+```java
+@SpringBootTest
+@AutoConfigureMockMvc
+class SupplierControllerIntegrationTest {
+    @Autowired
+    private MockMvc mockMvc;
+    
+    @Test
+    void testGetAllSuppliers() throws Exception {
+        mockMvc.perform(get("/api/suppliers"))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$").isArray());
+    }
+}
+```
+
+#### 7.2.3 安全测试（Security Testing）
+
+**测试框架**：Spring Security Test
+
+**测试范围**：
+- 角色权限验证
+- 认证机制测试
+- 授权规则测试
+- API 访问控制测试
+
+**测试示例**：
+```java
+@Test
+@WithMockUser(username = "admin", roles = {"ADMIN"})
+void testAdminAccess() throws Exception {
+    mockMvc.perform(get("/api/admin/suppliers"))
+           .andExpect(status().isOk());
+}
+
+@Test
+@WithMockUser(username = "viewer", roles = {"VIEWER"})
+void testViewerNoAdminAccess() throws Exception {
+    mockMvc.perform(get("/api/admin/suppliers"))
+           .andExpect(status().isForbidden());
+}
+```
+
+#### 7.2.4 数据库测试
+
+**测试数据库**：H2 内存数据库
+
+**测试范围**：
+- 数据持久化测试
+- 查询功能测试
+- 事务管理测试
+- 数据完整性测试
+
+**测试配置**：
+```java
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+class SupplierRepositoryTest {
+    @Autowired
+    private TestEntityManager entityManager;
+    
+    @Autowired
+    private SupplierRepository supplierRepository;
+    
+    @Test
+    void testFindByCountry() {
+        Supplier supplier = new Supplier("Test Supplier", "USA");
+        entityManager.persist(supplier);
+        
+        List<Supplier> found = supplierRepository.findByCountry("USA");
+        assertFalse(found.isEmpty());
+    }
+}
+```
+
+### 7.3 前端测试方法
+
+#### 7.3.1 手动测试（Manual Testing）
+
+**测试范围**：
+- 用户界面（UI）测试
+- 用户体验（UX）测试
+- 跨浏览器兼容性测试
+- 响应式设计测试
+
+**测试流程**：
+1. **功能测试**：逐个功能模块进行测试，确保功能正常工作
+2. **界面测试**：检查界面元素是否正确显示，布局是否合理
+3. **交互测试**：测试用户交互（点击、输入、导航等）是否正常
+4. **数据验证**：验证数据输入、显示和存储是否正确
+5. **兼容性测试**：在不同浏览器（Chrome、Firefox、Edge、Safari）中测试
+
+**测试检查清单**：
+- [ ] 登录功能是否正常
+- [ ] 不同角色的权限是否正确
+- [ ] 表单验证是否有效
+- [ ] 数据加载和显示是否正确
+- [ ] 图表和可视化是否正常渲染
+- [ ] 响应式设计在不同屏幕尺寸下是否正常
+- [ ] 错误处理是否友好
+- [ ] 性能是否满足要求
+
+#### 7.3.2 浏览器开发者工具测试
+
+**测试工具**：Chrome DevTools、Firefox Developer Tools
+
+**测试范围**：
+- 控制台错误检查
+- 网络请求监控
+- 性能分析
+- 移动设备模拟
+
+**测试步骤**：
+1. 打开浏览器开发者工具（F12）
+2. 检查 Console 标签页是否有错误或警告
+3. 使用 Network 标签页监控 API 请求和响应
+4. 使用 Performance 标签页分析页面性能
+5. 使用 Device Toolbar 模拟不同设备
+
+### 7.4 测试流程
+
+#### 7.4.1 测试计划
+
+1. **需求分析**：理解系统需求和功能规格
+2. **测试策略制定**：确定测试范围、测试类型和测试优先级
+3. **测试用例设计**：编写详细的测试用例
+4. **测试环境准备**：配置测试环境（数据库、测试数据等）
+5. **测试执行**：按照测试用例执行测试
+6. **缺陷报告**：记录发现的缺陷和问题
+7. **缺陷修复验证**：验证缺陷是否已修复
+8. **测试总结**：总结测试结果和覆盖率
+
+#### 7.4.2 测试优先级
+
+**高优先级**：
+- 用户认证和授权
+- 核心业务功能（供应商管理、运输跟踪）
+- 数据持久化和完整性
+- 安全性功能
+
+**中优先级**：
+- 数据可视化和图表
+- 报告生成
+- 用户界面和用户体验
+
+**低优先级**：
+- 辅助功能和优化
+- 边缘情况处理
+
+### 7.5 测试覆盖率目标
+
+- **后端单元测试覆盖率**：≥ 70%
+- **后端集成测试覆盖率**：≥ 50%
+- **前端手动测试覆盖率**：100%（所有用户可访问的功能）
+- **关键路径测试覆盖率**：100%
+
+### 7.6 测试最佳实践
+
+1. **测试驱动开发（TDD）**：在编写代码之前编写测试用例
+2. **持续集成（CI）**：在代码提交时自动运行测试
+3. **测试隔离**：确保测试之间相互独立，不依赖执行顺序
+4. **测试数据管理**：使用测试数据工厂或 fixtures 管理测试数据
+5. **测试文档化**：为每个测试用例编写清晰的文档和注释
+6. **定期重构测试**：保持测试代码的可维护性和可读性
+7. **性能测试**：定期进行性能测试，确保系统性能满足要求
+
+### 7.7 测试工具和框架总结
+
+| 层级 | 测试类型 | 工具/框架 | 用途 |
+|------|---------|----------|------|
+| 后端 | 单元测试 | JUnit 5 | 测试单个方法和类 |
+| 后端 | 集成测试 | Spring Boot Test | 测试多层架构集成 |
+| 后端 | 安全测试 | Spring Security Test | 测试认证和授权 |
+| 后端 | 数据库测试 | H2 Database | 测试数据持久化 |
+| 前端 | 手动测试 | 浏览器开发者工具 | 测试 UI 和 UX |
+| 前端 | 兼容性测试 | 多浏览器 | 测试跨浏览器兼容性 |
+| 前端 | 性能测试 | Chrome DevTools | 测试页面性能 |
+
+### 7.8 测试报告
+
+测试完成后，应生成测试报告，包括：
+- 测试用例总数和通过率
+- 发现的缺陷数量和严重程度
+- 测试覆盖率统计
+- 性能测试结果
+- 测试建议和改进措施
+
+## 8. 总结
 
 GreenChain 系统为企业提供了全面的供应链可持续性管理工具，帮助企业减少环境影响，提高可持续发展绩效。通过本文档的指南，不同类型的用户可以有效地使用系统的各项功能，实现可持续发展目标。
 
