@@ -1,9 +1,14 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from '../composables/useI18n'
 
 const route = useRoute()
-const pageTitle = computed(() => String(route.meta.menuTitle || ''))
+const { t } = useI18n()
+const pageTitle = computed(() => {
+  const titleKey = route.meta.menuTitle || ''
+  return titleKey ? t(titleKey) : ''
+})
 </script>
 
 <template>

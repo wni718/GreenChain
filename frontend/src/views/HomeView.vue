@@ -1,7 +1,9 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import { useI18n } from '../composables/useI18n'
 
 const router = useRouter()
+const { t } = useI18n()
 
 function navigateTo(routeName) {
   router.push({ name: routeName })
@@ -11,27 +13,24 @@ function navigateTo(routeName) {
 <template>
   <main class="home" aria-label="Home">
     <div class="home-content">
-      <h1 class="home-title">Welcome to GreenChain</h1>
-      <p class="home-description">
-        GreenChain is a comprehensive supply chain sustainability platform that helps
-        businesses track, analyze, and optimize their environmental impact.
-      </p>
+      <h1 class="home-title">{{ t('welcome') }}</h1>
+      <p class="home-description">{{ t('description') }}</p>
       <div class="home-features">
         <div class="feature-card" @click="navigateTo('core-indicators')">
-          <h2>Core Indicators</h2>
-          <p>Monitor key sustainability metrics and carbon emissions data</p>
+          <h2>{{ t('core-indicators') }}</h2>
+          <p>{{ t('core-indicators-desc') }}</p>
         </div>
         <div class="feature-card" @click="navigateTo('carbon-emission-charts')">
-          <h2>Carbon Emission Charts</h2>
-          <p>Visualize emissions trends and transportation mode distribution</p>
+          <h2>{{ t('carbon-emission-charts') }}</h2>
+          <p>{{ t('carbon-emission-charts-desc') }}</p>
         </div>
         <div class="feature-card" @click="navigateTo('supplier-chain-map')">
-          <h2>Supplier Chain Map</h2>
-          <p>Interactive global map of suppliers and shipment routes</p>
+          <h2>{{ t('supplier-chain-map') }}</h2>
+          <p>{{ t('supplier-chain-map-desc') }}</p>
         </div>
         <div class="feature-card" @click="navigateTo('shipment-tracking')">
-          <h2>Shipment Tracking</h2>
-          <p>Track and manage your supply chain shipments</p>
+          <h2>{{ t('shipment-tracking') }}</h2>
+          <p>{{ t('shipment-tracking-desc') }}</p>
         </div>
       </div>
     </div>

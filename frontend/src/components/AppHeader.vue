@@ -1,13 +1,20 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
-import { ref } from 'vue'
+import { useI18n } from '../composables/useI18n'
+import { useDarkMode } from '../composables/useDarkMode'
+import { ref, computed } from 'vue'
 import UserAvatar from './UserAvatar.vue'
 import brandLogoUrl from '../assets/GreenChain_logo.jpg'
 
 const router = useRouter()
 const { currentUser } = useAuth()
+const { t, toggleLocale, isChinese } = useI18n()
+const { isDarkMode, toggleDarkMode } = useDarkMode()
 const showMenu = ref(false)
+
+const currentLangText = computed(() => isChinese.value ? 'English' : '中文')
+const darkModeText = computed(() => isDarkMode.value ? t('light-mode') : t('dark-mode'))
 
 function onUserChipClick() {
   if (!currentUser.value) {
@@ -32,12 +39,12 @@ function toggleMenu() {
 }
 
 const menuItems = [
-  { name: 'core-indicators', label: 'Core indicators' },
-  { name: 'carbon-emission-charts', label: 'Carbon Emission Charts' },
-  { name: 'supplier-chain-map', label: 'Supplier Chain Map' },
-  { name: 'supplier-management', label: 'Supplier Management' },
-  { name: 'shipment-tracking', label: 'Shipment Tracking' },
-  { name: 'generate-report', label: 'Generate Report' },
+  { name: 'core-indicators', label: t('core-indicators') },
+  { name: 'carbon-emission-charts', label: t('carbon-emission-charts') },
+  { name: 'supplier-chain-map', label: t('supplier-chain-map') },
+  { name: 'supplier-management', label: t('supplier-management') },
+  { name: 'shipment-tracking', label: t('shipment-tracking') },
+  { name: 'generate-report', label: t('generate-report') },
 ]
 </script>
 
@@ -50,7 +57,7 @@ const menuItems = [
       </button>
       <div class="menu-dropdown">
         <button type="button" class="menu-button" @click="toggleMenu">
-          Menu
+          {{ t('menu') }}
           <span class="menu-icon">▼</span>
         </button>
         <div v-if="showMenu" class="dropdown-menu">
@@ -65,12 +72,20 @@ const menuItems = [
         </div>
       </div>
     </div>
-    <button type="button" class="user-chip" @click="onUserChipClick">
-      <span class="avatar" aria-hidden="true">
-        <UserAvatar :size="28" />
-      </span>
-      <span class="user-label">{{ currentUser ? currentUser.username : 'log in' }}</span>
-    </button>
+    <div class="right-section">
+      <button type="button" class="dark-mode-switch" @click="toggleDarkMode" :title="t('dark-mode')">
+        {{ darkModeText }}
+      </button>
+      <button type="button" class="lang-switch" @click="toggleLocale" :title="t('language')">
+        {{ currentLangText }}
+      </button>
+      <button type="button" class="user-chip" @click="onUserChipClick">
+        <span class="avatar" aria-hidden="true">
+          <UserAvatar :size="28" />
+        </span>
+        <span class="user-label">{{ currentUser ? currentUser.username : t('log-in') }}</span>
+      </button>
+    </div>
   </header>
 </template>
 
@@ -224,5 +239,63 @@ const menuItems = [
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.right-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 70px;
+  padding: 0.35rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background: #528951;
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background 0.15s ease, filter 0.15s ease;
+}
+
+.lang-switch:hover {
+  filter: brightness(1.06);
+}
+
+.lang-switch:active {
+  background: #3f6d3e;
+  filter: brightness(0.95);
+}
+
+.dark-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 90px;
+  padding: 0.35rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background: #528951;
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background 0.15s ease, filter 0.15s ease;
+}
+
+.dark-mode-switch:hover {
+  filter: brightness(1.06);
+}
+
+.dark-mode-switch:active {
+  background: #3f6d3e;
+  filter: brightness(0.95);
 }
 </style>

@@ -5,8 +5,10 @@ import { useFormValidation, ValidationRules } from '../composables/useFormValida
 import { usePagination } from '../composables/usePagination'
 import Pagination from '../components/Pagination.vue'
 import { formatErrorBody } from '../utils/apiError'
+import { useI18n } from '../composables/useI18n'
 
 const { apiAuthHeader, currentUser } = useAuth()
+const { t } = useI18n()
 
 const isLoggedIn = computed(() => Boolean(currentUser.value?.username))
 const canModify = computed(() => currentUser.value?.role !== 'VIEWER')
@@ -538,14 +540,14 @@ watch(
   <div class="page">
     <template v-if="!isLoggedIn">
       <header class="page__head">
-        <h1 class="page__title">Shipment Tracking</h1>
+        <h1 class="page__title">{{ t('shipment-tracking-page-title') }}</h1>
       </header>
-      <p class="guest-notice" role="status">You need to log in to track shipments.</p>
+      <p class="guest-notice" role="status">{{ t('login-to-track-shipments') }}</p>
     </template>
 
     <template v-else>
       <header class="page__head">
-        <h1 class="page__title">Shipment Tracking</h1>
+        <h1 class="page__title">{{ t('shipment-tracking-page-title') }}</h1>
       </header>
 
       <p
@@ -560,9 +562,9 @@ watch(
       <div class="toolbar">
         <div class="toolbar-actions">
           <button type="button" class="btn btn--ghost" :disabled="loading" @click="loadShipments">
-            {{ loading ? 'Loading…' : 'Refresh' }}
+            {{ loading ? t('loading') : t('refresh') }}
           </button>
-          <button v-if="canModify" type="button" class="btn btn--primary" @click="openCreate">New shipment</button>
+          <button v-if="canModify" type="button" class="btn btn--primary" @click="openCreate">{{ t('new-shipment') }}</button>
         </div>
       </div>
 
@@ -572,15 +574,15 @@ watch(
             <tr>
               <th scope="col">#</th>
               <th scope="col" class="col-id">ID</th>
-              <th scope="col">Supplier</th>
-              <th scope="col">Mode</th>
-              <th scope="col">Origin</th>
-              <th scope="col">Destination</th>
-              <th scope="col">Distance (km)</th>
-              <th scope="col">Weight (t)</th>
-              <th scope="col">Date</th>
-              <th scope="col">CO2e (kg)</th>
-              <th v-if="canModify" scope="col" class="col-actions">Actions</th>
+              <th scope="col">{{ t('supplier') }}</th>
+              <th scope="col">{{ t('mode') }}</th>
+              <th scope="col">{{ t('origin') }}</th>
+              <th scope="col">{{ t('destination') }}</th>
+              <th scope="col">{{ t('distance-km') }}</th>
+              <th scope="col">{{ t('weight-tons') }}</th>
+              <th scope="col">{{ t('date') }}</th>
+              <th scope="col">{{ t('co2e-kg') }}</th>
+              <th v-if="canModify" scope="col" class="col-actions">{{ t('actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -595,7 +597,7 @@ watch(
             <!-- Empty state -->
             <tr v-else-if="shipments.length === 0">
               <td colspan="11" class="empty-cell">
-                No shipments yet. Please add suppliers first, then click "New shipment" to create one.
+                {{ t('no-shipments-yet') }}
               </td>
             </tr>
             <!-- Data rows -->
@@ -611,9 +613,9 @@ watch(
               <td>{{ row.shipmentDate || '—' }}</td>
               <td>{{ row.calculatedCarbonEmission != null ? Number(row.calculatedCarbonEmission).toFixed(2) : '—' }}</td>
               <td v-if="canModify" class="col-actions">
-                <button type="button" class="link-btn" @click="openEdit(row)">Edit</button>
+                <button type="button" class="link-btn" @click="openEdit(row)">{{ t('edit') }}</button>
                 <button type="button" class="link-btn link-btn--danger" @click="removeRow(row)">
-                  Delete
+                  {{ t('delete') }}
                 </button>
               </td>
             </tr>
@@ -634,13 +636,13 @@ watch(
       <div v-if="dialogOpen" class="dialog-backdrop" role="presentation" @click.self="closeDialog">
         <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="shipment-dialog-title">
           <h2 id="shipment-dialog-title" class="dialog__title">
-            {{ editingId != null ? 'Edit shipment' : 'New shipment' }}
+            {{ editingId != null ? t('edit-shipment') : t('new-shipment') }}
           </h2>
           <form class="dialog__form" @submit.prevent="saveShipment" novalidate>
             <!-- Supplier Field -->
             <div class="form-field" :class="{ 'form-field--error': formTouched.supplierId && formErrors.supplierId }">
               <label for="field-supplier" class="form-field__label">
-                Supplier <span class="form-field__required">*</span>
+                {{ t('supplier') }} <span class="form-field__required">*</span>
               </label>
               <div class="form-field__input-wrapper">
                 <select
@@ -650,7 +652,7 @@ watch(
                   :class="{ 'form-field__input--error': formTouched.supplierId && formErrors.supplierId }"
                   @blur="touchFormField('supplierId')"
                 >
-                  <option disabled value="">Select supplier</option>
+                  <option disabled value="">{{ t('select-supplier') }}</option>
                   <option v-for="s in suppliers" :key="s.id" :value="String(s.id)">
                     {{ s.name || `ID ${s.id}` }}
                   </option>
@@ -664,7 +666,7 @@ watch(
             <!-- Transport Mode Field -->
             <div class="form-field" :class="{ 'form-field--error': formTouched.transportModeId && formErrors.transportModeId }">
               <label for="field-mode" class="form-field__label">
-                Transport mode <span class="form-field__required">*</span>
+                {{ t('transport-mode') }} <span class="form-field__required">*</span>
               </label>
               <div class="form-field__input-wrapper">
                 <select
@@ -674,7 +676,7 @@ watch(
                   :class="{ 'form-field__input--error': formTouched.transportModeId && formErrors.transportModeId }"
                   @blur="touchFormField('transportModeId')"
                 >
-                  <option disabled value="">Select mode</option>
+                  <option disabled value="">{{ t('select-transport-mode') }}</option>
                   <option v-for="m in transportModes" :key="m.id" :value="String(m.id)">
                     {{ m.displayName || m.mode || `ID ${m.id}` }}
                   </option>
@@ -694,7 +696,7 @@ watch(
                 :disabled="!form.transportModeId || recommendationLoading"
                 style="flex: 1;"
               >
-                {{ recommendationLoading ? 'Recommending...' : 'Recommend' }}
+                {{ recommendationLoading ? t('recommending') : t('recommend') }}
               </button>
               <button
                 type="button"
@@ -703,7 +705,7 @@ watch(
                 :disabled="recommendationLoading"
                 style="flex: 1;"
               >
-                {{ recommendationLoading ? 'Loading...' : 'Smart' }}
+                {{ recommendationLoading ? t('loading') : t('smart') }}
               </button>
               <button
                 type="button"
@@ -712,58 +714,58 @@ watch(
                 :disabled="!form.transportModeId || recommendationLoading"
                 style="flex: 1;"
               >
-                {{ recommendationLoading ? 'Analyzing...' : 'Unified' }}
+                {{ recommendationLoading ? t('analyzing') : t('unified') }}
               </button>
             </div>
 
             <!-- Recommendation Results -->
             <div v-if="showRecommendation && recommendation" style="margin-top: 0.5rem; padding: 0.75rem; background: #f0f8f0; border-radius: 6px; border: 1px solid #d0e8d0;">
-              <h4 style="margin: 0 0 0.5rem; color: #3d5340; font-size: 0.9rem;">Recommendation Result</h4>
+              <h4 style="margin: 0 0 0.5rem; color: #3d5340; font-size: 0.9rem;">{{ t('recommendation-result') }}</h4>
               <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                <strong>Recommended transport mode:</strong> {{ recommendation.best_mode || 'No recommendation' }}
+                <strong>{{ t('recommended-transport-mode') }}:</strong> {{ recommendation.best_mode || t('no-recommendation') }}
               </p>
               <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                <strong>Estimated carbon reduction:</strong> {{ recommendation.saving || '0%' }}
+                <strong>{{ t('estimated-carbon-reduction') }}:</strong> {{ recommendation.saving || '0%' }}
               </p>
               <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                <strong>Reduction amount:</strong> {{ recommendation.saving_amount ? recommendation.saving_amount.toFixed(2) : '0' }} {{ recommendation.saving_amount_unit || 'kg CO2e' }}
+                <strong>{{ t('reduction-amount') }}:</strong> {{ recommendation.saving_amount ? recommendation.saving_amount.toFixed(2) : '0' }} {{ recommendation.saving_amount_unit || 'kg CO2e' }}
               </p>
               <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                <strong>Current emission:</strong> {{ recommendation.current_emission ? recommendation.current_emission.toFixed(2) : '0' }} kg CO2e
+                <strong>{{ t('current-emission') }}:</strong> {{ recommendation.current_emission ? recommendation.current_emission.toFixed(2) : '0' }} kg CO2e
               </p>
               <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                <strong>Recommended emission:</strong> {{ recommendation.recommended_emission ? recommendation.recommended_emission.toFixed(2) : '0' }} kg CO2e
+                <strong>{{ t('recommended-emission') }}:</strong> {{ recommendation.recommended_emission ? recommendation.recommended_emission.toFixed(2) : '0' }} kg CO2e
               </p>
             </div>
 
             <div v-if="smartRecommendation" style="margin-top: 0.5rem; padding: 0.75rem; background: #fff8f0; border-radius: 6px; border: 1px solid #ffe0b2;">
-              <h4 style="margin: 0 0 0.5rem; color: #e65100; font-size: 0.9rem;">Smart Recommendation (Based on History)</h4>
+              <h4 style="margin: 0 0 0.5rem; color: #e65100; font-size: 0.9rem;">{{ t('smart-recommendation-title') }}</h4>
               <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                <strong>Recommended transport mode:</strong> {{ smartRecommendation.best_mode || 'N/A' }}
+                <strong>{{ t('recommended-transport-mode') }}:</strong> {{ smartRecommendation.best_mode || 'N/A' }}
               </p>
               <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                <strong>Based on:</strong> {{ smartRecommendation.saving || 'Historical data' }}
+                <strong>{{ t('based-on') }}:</strong> {{ smartRecommendation.saving || t('historical-data') }}
               </p>
               <p style="margin: 0; font-size: 0.85rem;">
-                <strong>Estimated emission:</strong> {{ smartRecommendation.current_emission ? smartRecommendation.current_emission.toFixed(2) : '0' }} {{ smartRecommendation.saving_amount_unit || 'kg CO2e' }}
+                <strong>{{ t('estimated-emission') }}:</strong> {{ smartRecommendation.current_emission ? smartRecommendation.current_emission.toFixed(2) : '0' }} {{ smartRecommendation.saving_amount_unit || 'kg CO2e' }}
               </p>
             </div>
 
             <div v-if="showRecommendation && unifiedRecommendation" style="margin-top: 0.5rem; padding: 0.75rem; background: #f0f5ff; border-radius: 6px; border: 1px solid #c3d4ff;">
-              <h4 style="margin: 0 0 0.5rem; color: #1e40af; font-size: 0.9rem;">Unified Recommendation</h4>
+              <h4 style="margin: 0 0 0.5rem; color: #1e40af; font-size: 0.9rem;">{{ t('unified-recommendation-title') }}</h4>
               <div v-if="unifiedRecommendation.best" style="margin-bottom: 0.75rem;">
                 <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                  <strong>Best Recommendation:</strong> {{ unifiedRecommendation.best.best_mode || 'N/A' }}
+                  <strong>{{ t('best-recommendation') }}:</strong> {{ unifiedRecommendation.best.best_mode || 'N/A' }}
                 </p>
                 <p style="margin: 0 0 0.25rem; font-size: 0.85rem;">
-                  <strong>Estimated emission:</strong> {{ unifiedRecommendation.best.recommended_emission || unifiedRecommendation.best.current_emission ? (unifiedRecommendation.best.recommended_emission || unifiedRecommendation.best.current_emission).toFixed(2) : '0' }} kg CO2e
+                  <strong>{{ t('estimated-emission') }}:</strong> {{ unifiedRecommendation.best.recommended_emission || unifiedRecommendation.best.current_emission ? (unifiedRecommendation.best.recommended_emission || unifiedRecommendation.best.current_emission).toFixed(2) : '0' }} kg CO2e
                 </p>
               </div>
             </div>
 
             <!-- Origin Field -->
             <div class="form-field" :class="{ 'form-field--error': formTouched.origin && formErrors.origin }">
-              <label for="field-origin" class="form-field__label">Origin</label>
+              <label for="field-origin" class="form-field__label">{{ t('origin') }}</label>
               <div class="form-field__input-wrapper">
                 <input
                   id="field-origin"
@@ -772,7 +774,7 @@ watch(
                   type="text"
                   autocomplete="off"
                   :class="{ 'form-field__input--error': formTouched.origin && formErrors.origin }"
-                  placeholder="Enter origin location"
+                  :placeholder="t('enter-origin-location')"
                   @blur="touchFormField('origin')"
                 />
               </div>
@@ -783,7 +785,7 @@ watch(
 
             <!-- Destination Field -->
             <div class="form-field" :class="{ 'form-field--error': formTouched.destination && formErrors.destination }">
-              <label for="field-destination" class="form-field__label">Destination</label>
+              <label for="field-destination" class="form-field__label">{{ t('destination') }}</label>
               <div class="form-field__input-wrapper">
                 <input
                   id="field-destination"
@@ -792,7 +794,7 @@ watch(
                   type="text"
                   autocomplete="off"
                   :class="{ 'form-field__input--error': formTouched.destination && formErrors.destination }"
-                  placeholder="Enter destination location"
+                  :placeholder="t('enter-destination-location')"
                   @blur="touchFormField('destination')"
                 />
               </div>
@@ -804,7 +806,7 @@ watch(
             <!-- Distance Field -->
             <div class="form-field" :class="{ 'form-field--error': formTouched.distanceKm && formErrors.distanceKm }">
               <label for="field-distance" class="form-field__label">
-                Distance (km) <span class="form-field__required">*</span>
+                {{ t('distance-km') }} <span class="form-field__required">*</span>
               </label>
               <div class="form-field__input-wrapper">
                 <input
@@ -814,7 +816,7 @@ watch(
                   type="text"
                   inputmode="decimal"
                   :class="{ 'form-field__input--error': formTouched.distanceKm && formErrors.distanceKm }"
-                  placeholder="Enter distance in kilometers"
+                  :placeholder="t('enter-distance-kilometers')"
                   @blur="touchFormField('distanceKm')"
                 />
                 <span
@@ -846,7 +848,7 @@ watch(
             <!-- Cargo Weight Field -->
             <div class="form-field" :class="{ 'form-field--error': formTouched.cargoWeightTons && formErrors.cargoWeightTons }">
               <label for="field-weight" class="form-field__label">
-                Cargo weight (tons) <span class="form-field__required">*</span>
+                {{ t('cargo-weight-tons') }} <span class="form-field__required">*</span>
               </label>
               <div class="form-field__input-wrapper">
                 <input
@@ -856,7 +858,7 @@ watch(
                   type="text"
                   inputmode="decimal"
                   :class="{ 'form-field__input--error': formTouched.cargoWeightTons && formErrors.cargoWeightTons }"
-                  placeholder="Enter cargo weight in tons"
+                  :placeholder="t('enter-cargo-weight-tons')"
                   @blur="touchFormField('cargoWeightTons')"
                 />
                 <span
@@ -887,7 +889,7 @@ watch(
 
             <!-- Shipment Date Field -->
             <div class="form-field" :class="{ 'form-field--error': formTouched.shipmentDate && formErrors.shipmentDate }">
-              <label for="field-date" class="form-field__label">Shipment date</label>
+              <label for="field-date" class="form-field__label">{{ t('shipment-date') }}</label>
               <div class="form-field__input-wrapper">
                 <input
                   id="field-date"
@@ -904,8 +906,8 @@ watch(
             </div>
 
             <div class="dialog__actions">
-              <button type="button" class="btn btn--ghost" @click="closeDialog">Cancel</button>
-              <button type="submit" class="btn btn--primary">Save</button>
+              <button type="button" class="btn btn--ghost" @click="closeDialog">{{ t('cancel') }}</button>
+              <button type="submit" class="btn btn--primary">{{ t('save') }}</button>
             </div>
           </form>
         </div>

@@ -3,10 +3,12 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { useFormValidation, ValidationRules } from '../composables/useFormValidation'
+import { useI18n } from '../composables/useI18n'
 import { formatErrorBody } from '../utils/apiError'
 
 const router = useRouter()
 const { setLoggedIn } = useAuth()
+const { t } = useI18n()
 
 // 表单验证
 const {
@@ -18,22 +20,22 @@ const {
   resetValidation,
 } = useFormValidation({
   email: [
-    ValidationRules.required('Please enter your email address'),
-    ValidationRules.email('Please enter a valid email address'),
+    ValidationRules.required(t('please-enter-username')),
+    ValidationRules.email(t('please-enter-username')),
   ],
   username: [
-    ValidationRules.required('Please enter a username'),
-    ValidationRules.minLength(3, 'Username must be at least 3 characters'),
-    ValidationRules.maxLength(50, 'Username must be at most 50 characters'),
-    ValidationRules.pattern(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
+    ValidationRules.required(t('please-enter-username')),
+    ValidationRules.minLength(3, t('username-min-length')),
+    ValidationRules.maxLength(50, t('username-min-length')),
+    ValidationRules.pattern(/^[a-zA-Z0-9_]+$/, t('username-min-length')),
   ],
   password: [
-    ValidationRules.required('Please enter a password'),
-    ValidationRules.minLength(6, 'Password must be at least 6 characters'),
-    ValidationRules.maxLength(100, 'Password must be at most 100 characters'),
+    ValidationRules.required(t('please-enter-password')),
+    ValidationRules.minLength(6, t('password-min-length')),
+    ValidationRules.maxLength(100, t('password-min-length')),
   ],
   confirmPassword: [
-    ValidationRules.required('Please confirm your password'),
+    ValidationRules.required(t('please-enter-password')),
   ],
 })
 
@@ -66,7 +68,7 @@ async function onSubmit() {
     if (matchError && isValid) {
       message.value = matchError
     } else {
-      message.value = 'Please fix the errors above before submitting.'
+      message.value = t('fix-errors')
     }
     return
   }
@@ -109,8 +111,7 @@ async function onSubmit() {
 
     message.value = formatErrorBody(res.status, text)
   } catch {
-    message.value =
-      'Cannot reach the server. Check that the backend is on port 8080 and that you run npm run dev (or npm run preview) so /api is proxied.'
+    message.value = t('server-error')
   } finally {
     isSubmitting.value = false
   }
@@ -119,7 +120,7 @@ async function onSubmit() {
 // 密码匹配验证
 function passwordMatch() {
   if (fields.confirmPassword && fields.password !== fields.confirmPassword) {
-    return 'Passwords do not match'
+    return t('passwords-mismatch')
   }
   return ''
 }
@@ -134,7 +135,7 @@ function goLogin() {
 <template>
   <div class="auth-form-wrap">
     <form class="auth-form-panel" @submit.prevent="onSubmit" novalidate>
-      <h1 class="auth-form-title">Register</h1>
+      <h1 class="auth-form-title">{{ t('register') }}</h1>
 
       <!-- Email Field -->
       <div class="field-wrapper" :class="{ 'field-wrapper--error': touched.email && errors.email }">
@@ -147,8 +148,8 @@ function goLogin() {
             'input--error': touched.email && errors.email,
             'input--success': touched.email && !errors.email && fields.email
           }"
-          placeholder="Email Address"
-          aria-label="Email Address"
+          :placeholder="t('email')"
+          :aria-label="t('email')"
           @blur="onFieldBlur('email')"
         />
         <p v-if="touched.email && errors.email" class="field-error">{{ errors.email }}</p>
@@ -165,8 +166,8 @@ function goLogin() {
             'input--error': touched.username && errors.username,
             'input--success': touched.username && !errors.username && fields.username
           }"
-          placeholder="Username"
-          aria-label="Username"
+          :placeholder="t('username')"
+          :aria-label="t('username')"
           @blur="onFieldBlur('username')"
         />
         <p v-if="touched.username && errors.username" class="field-error">{{ errors.username }}</p>
@@ -183,8 +184,8 @@ function goLogin() {
             'input--error': touched.password && errors.password,
             'input--success': touched.password && !errors.password && fields.password
           }"
-          placeholder="Password"
-          aria-label="Password"
+          :placeholder="t('password')"
+          :aria-label="t('password')"
           @blur="onFieldBlur('password')"
         />
         <p v-if="touched.password && errors.password" class="field-error">{{ errors.password }}</p>
@@ -201,17 +202,17 @@ function goLogin() {
             'input--error': touched.confirmPassword && (errors.confirmPassword || (fields.confirmPassword && fields.password !== fields.confirmPassword)),
             'input--success': touched.confirmPassword && !errors.confirmPassword && fields.confirmPassword && fields.password === fields.confirmPassword
           }"
-          placeholder="Confirm password"
-          aria-label="Confirm password"
+          :placeholder="t('confirm-password')"
+          :aria-label="t('confirm-password')"
           @blur="onFieldBlur('confirmPassword')"
         />
         <p v-if="touched.confirmPassword && (errors.confirmPassword || (fields.confirmPassword && fields.password !== fields.confirmPassword))" class="field-error">
-          {{ fields.password !== fields.confirmPassword ? 'Passwords do not match' : errors.confirmPassword }}
+          {{ fields.password !== fields.confirmPassword ? t('passwords-mismatch') : errors.confirmPassword }}
         </p>
       </div>
 
       <!-- Role Selection -->
-      <select v-model="role" class="auth-form-input" aria-label="Role">
+      <select v-model="role" class="auth-form-input" :aria-label="t('role')">
         <option value="VIEWER">Viewer</option>
         <option value="SUSTAINABILITY_MANAGER">Sustainability manager</option>
         <option value="SUPPLIER">Supplier</option>
@@ -219,9 +220,9 @@ function goLogin() {
 
       <p v-if="message" class="auth-form-msg auth-form-msg--err">{{ message }}</p>
 
-      <button type="button" class="auth-form-link" @click="goLogin">Back to Log in</button>
+      <button type="button" class="auth-form-link" @click="goLogin">{{ t('back-to-login') }}</button>
       <button type="submit" class="auth-form-submit" :disabled="isSubmitting">
-        {{ isSubmitting ? 'Creating account...' : 'Register' }}
+        {{ isSubmitting ? t('signing-in') : t('register') }}
       </button>
     </form>
   </div>

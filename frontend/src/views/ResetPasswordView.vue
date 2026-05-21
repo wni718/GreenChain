@@ -2,9 +2,11 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFormValidation, ValidationRules } from '../composables/useFormValidation'
+import { useI18n } from '../composables/useI18n'
 import { formatErrorBody } from '../utils/apiError'
 
 const router = useRouter()
+const { t } = useI18n()
 
 // 表单验证
 const {
@@ -16,15 +18,15 @@ const {
   resetValidation,
 } = useFormValidation({
   email: [
-    ValidationRules.required('Please enter your email address'),
-    ValidationRules.email('Please enter a valid email address'),
+    ValidationRules.required(t('please-enter-username')),
+    ValidationRules.email(t('please-enter-username')),
   ],
   newPassword: [
-    ValidationRules.required('Please enter a new password'),
-    ValidationRules.minLength(6, 'Password must be at least 6 characters'),
+    ValidationRules.required(t('please-enter-password')),
+    ValidationRules.minLength(6, t('password-min-length')),
   ],
   confirmPassword: [
-    ValidationRules.required('Please confirm your password'),
+    ValidationRules.required(t('please-enter-password')),
   ],
 })
 
@@ -41,7 +43,7 @@ function onFieldBlur(field) {
 // 密码匹配验证
 function passwordMatch() {
   if (fields.confirmPassword && fields.newPassword !== fields.confirmPassword) {
-    return 'Passwords do not match'
+    return t('passwords-mismatch')
   }
   return ''
 }
@@ -62,7 +64,7 @@ async function onSubmit() {
   }
 
   if (!isValid || matchError) {
-    message.value = 'Please fix the errors above before submitting.'
+    message.value = t('fix-errors')
     return
   }
 
@@ -83,15 +85,14 @@ async function onSubmit() {
     const text = await res.text()
 
     if (res.ok) {
-      successText.value = text.trim() || 'Your password has been updated. Please sign in with the new password.'
+      successText.value = text.trim() || t('reset-link-sent')
       done.value = true
       return
     }
 
     message.value = formatErrorBody(res.status, text)
   } catch {
-    message.value =
-      'Cannot reach the server. Check that the backend is on port 8080 and that you run npm run dev (or npm run preview) so /api is proxied.'
+    message.value = t('server-error')
   } finally {
     isSubmitting.value = false
   }
@@ -108,14 +109,14 @@ function goLogin() {
   <div class="auth-form-wrap">
     <!-- Success State -->
     <div v-if="done" class="auth-form-panel">
-      <h1 class="auth-form-title">Reset Password</h1>
+      <h1 class="auth-form-title">{{ t('reset-password') }}</h1>
       <p class="auth-form-msg auth-form-msg--info">{{ successText }}</p>
-      <button type="button" class="auth-form-submit" @click="goLogin">Log in</button>
+      <button type="button" class="auth-form-submit" @click="goLogin">{{ t('log-in') }}</button>
     </div>
 
     <!-- Reset Form -->
     <form v-else class="auth-form-panel" @submit.prevent="onSubmit" novalidate>
-      <h1 class="auth-form-title">Reset Password</h1>
+      <h1 class="auth-form-title">{{ t('reset-password') }}</h1>
 
       <!-- Email Field -->
       <div class="field-wrapper" :class="{ 'field-wrapper--error': touched.email && errors.email }">
@@ -128,8 +129,8 @@ function goLogin() {
             'input--error': touched.email && errors.email,
             'input--success': touched.email && !errors.email && fields.email
           }"
-          placeholder="Email Address"
-          aria-label="Email Address"
+          :placeholder="t('email')"
+          :aria-label="t('email')"
           @blur="onFieldBlur('email')"
         />
         <p v-if="touched.email && errors.email" class="field-error">{{ errors.email }}</p>
@@ -146,8 +147,8 @@ function goLogin() {
             'input--error': touched.newPassword && errors.newPassword,
             'input--success': touched.newPassword && !errors.newPassword && fields.newPassword
           }"
-          placeholder="New password"
-          aria-label="New password"
+          :placeholder="t('new-password')"
+          :aria-label="t('new-password')"
           @blur="onFieldBlur('newPassword')"
         />
         <p v-if="touched.newPassword && errors.newPassword" class="field-error">{{ errors.newPassword }}</p>
@@ -164,20 +165,20 @@ function goLogin() {
             'input--error': touched.confirmPassword && (errors.confirmPassword || (fields.newPassword !== fields.confirmPassword)),
             'input--success': touched.confirmPassword && !errors.confirmPassword && fields.confirmPassword && fields.newPassword === fields.confirmPassword
           }"
-          placeholder="Confirm password"
-          aria-label="Confirm password"
+          :placeholder="t('confirm-new-password')"
+          :aria-label="t('confirm-new-password')"
           @blur="onFieldBlur('confirmPassword')"
         />
         <p v-if="touched.confirmPassword && (errors.confirmPassword || (fields.confirmPassword && fields.newPassword !== fields.confirmPassword))" class="field-error">
-          {{ fields.newPassword !== fields.confirmPassword ? 'Passwords do not match' : errors.confirmPassword }}
+          {{ fields.newPassword !== fields.confirmPassword ? t('passwords-mismatch') : errors.confirmPassword }}
         </p>
       </div>
 
       <p v-if="message" class="auth-form-msg auth-form-msg--err">{{ message }}</p>
 
-      <button type="button" class="auth-form-link" @click="goLogin">Back to Log in</button>
+      <button type="button" class="auth-form-link" @click="goLogin">{{ t('back-to-login') }}</button>
       <button type="submit" class="auth-form-submit" :disabled="isSubmitting">
-        {{ isSubmitting ? 'Resetting...' : 'Reset password' }}
+        {{ isSubmitting ? t('signing-in') : t('reset-password') }}
       </button>
     </form>
   </div>

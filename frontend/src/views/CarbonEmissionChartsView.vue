@@ -10,9 +10,11 @@ import {
   getTransportModeFactorsOption,
 } from '../utils/chartConfig'
 import SkeletonLoader from '../components/SkeletonLoader.vue'
+import { useI18n } from '../composables/useI18n'
 
 const { apiAuthHeader, currentUser } = useAuth()
 const { get: getCache, set: setCache } = useApiCache()
+const { t, currentLocale } = useI18n()
 
 const isLoggedIn = computed(() => Boolean(currentUser.value?.username))
 
@@ -49,15 +51,16 @@ function disposeCharts() {
 function applyChartOptions() {
   const s = summary.value
   if (!s || !lineEl.value || !pieEl.value || !transportModeEl.value) return
+  const locale = currentLocale.value || 'en'
 
   if (!lineChart) lineChart = echarts.init(lineEl.value)
-  lineChart.setOption(getEmissionsByDateOption(s), { notMerge: true })
+  lineChart.setOption(getEmissionsByDateOption(s, locale), { notMerge: true })
 
   if (!pieChart) pieChart = echarts.init(pieEl.value)
-  pieChart.setOption(getEmissionsByTransportModeOption(s), { notMerge: true })
+  pieChart.setOption(getEmissionsByTransportModeOption(s, locale), { notMerge: true })
 
   if (!transportModeChart) transportModeChart = echarts.init(transportModeEl.value)
-  transportModeChart.setOption(getTransportModeFactorsOption(transportModes.value), { notMerge: true })
+  transportModeChart.setOption(getTransportModeFactorsOption(transportModes.value, locale), { notMerge: true })
 
   lineChart.resize()
   pieChart.resize()
@@ -170,21 +173,21 @@ onBeforeUnmount(() => {
   <div class="page">
     <template v-if="!isLoggedIn">
       <header class="page__head">
-        <h1 class="page__title">Carbon Emission Charts</h1>
+        <h1 class="page__title">{{ t('carbon-emission-charts-page-title') }}</h1>
       </header>
-      <p class="guest-notice" role="status">You need to log in to view carbon charts.</p>
+      <p class="guest-notice" role="status">{{ t('login-to-view-charts') }}</p>
     </template>
 
     <template v-else>
       <header class="page__head">
-        <h1 class="page__title">Carbon Emission Charts</h1>
+        <h1 class="page__title">{{ t('carbon-emission-charts-page-title') }}</h1>
       </header>
 
       <p v-if="message" class="page__alert" role="status">{{ message }}</p>
 
       <div class="toolbar">
         <button type="button" class="btn btn--ghost" :disabled="loading" @click="loadSummary">
-          {{ loading ? 'Loading…' : 'Refresh' }}
+          {{ loading ? t('loading') : t('refresh') }}
         </button>
       </div>
 
@@ -200,10 +203,10 @@ onBeforeUnmount(() => {
       <!-- Charts -->
       <template v-else>
         <div class="charts">
-          <div ref="lineEl" class="chart" aria-label="Line chart of emissions by date" />
+          <div ref="lineEl" class="chart" :aria-label="t('line-chart-emissions-date')" />
           <div class="charts-row">
-            <div ref="pieEl" class="chart" aria-label="Pie chart of emissions by mode" />
-            <div ref="transportModeEl" class="chart" aria-label="Bar chart of transport mode emission factors" />
+            <div ref="pieEl" class="chart" :aria-label="t('pie-chart-emissions-mode')" />
+            <div ref="transportModeEl" class="chart" :aria-label="t('bar-chart-transport-factors')" />
           </div>
         </div>
       </template>

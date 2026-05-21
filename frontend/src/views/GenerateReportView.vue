@@ -15,9 +15,11 @@ import {
   getEmissionsByTransportModeOption,
   getTransportModeFactorsOption,
 } from '../utils/chartConfig'
+import { useI18n } from '../composables/useI18n'
 
 const { apiAuthHeader, currentUser } = useAuth()
 const { get: getCache, set: setCache } = useApiCache()
+const { t } = useI18n()
 
 // Cache TTL for report data (1 minute - short because reports need fresh data)
 const REPORT_CACHE_TTL = 60 * 1000
@@ -533,14 +535,14 @@ watch(isLoggedIn, (loggedIn) => {
   <div class="page">
     <template v-if="!isLoggedIn">
       <header class="page__head">
-        <h1 class="page__title">Generate Report</h1>
+        <h1 class="page__title">{{ t('generate-report-page-title') }}</h1>
       </header>
-      <p class="guest-notice" role="status">You need to log in to export a report.</p>
+      <p class="guest-notice" role="status">{{ t('login-to-export-report') }}</p>
     </template>
 
     <template v-else>
       <header class="page__head">
-        <h1 class="page__title">Generate Report</h1>
+        <h1 class="page__title">{{ t('generate-report-page-title') }}</h1>
       </header>
 
       <p
@@ -555,10 +557,10 @@ watch(isLoggedIn, (loggedIn) => {
       <div class="panel">
         <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
           <button type="button" class="btn btn--primary" :disabled="csvLoading" @click="exportCsv">
-            {{ csvLoading ? 'Preparing…' : 'Download CSV report' }}
+            {{ csvLoading ? t('preparing') : t('download-csv-report') }}
           </button>
           <button type="button" class="btn btn--primary" :disabled="pdfLoading" @click="exportPdf">
-            {{ pdfLoading ? 'Preparing…' : 'Download PDF report' }}
+            {{ pdfLoading ? t('preparing') : t('download-pdf-report') }}
           </button>
         </div>
       </div>

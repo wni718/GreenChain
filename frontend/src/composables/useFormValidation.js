@@ -269,7 +269,14 @@ export function useFormValidation(schema = {}) {
   function initForm(initialValues = {}) {
     resetValidation()
     for (const fieldName in schema) {
-      fields[fieldName] = initialValues[fieldName] ?? ''
+      const initialValue = initialValues[fieldName]
+      // 如果字段存在初始值（包括 false、0、''），使用初始值
+      // 否则保持为空字符串（适用于大多数字段）
+      if (initialValue !== undefined) {
+        fields[fieldName] = initialValue
+      } else {
+        fields[fieldName] = ''
+      }
     }
   }
 

@@ -6,9 +6,11 @@ import { usePagination } from '../composables/usePagination'
 import { useApiCache } from '../composables/useApiCache'
 import Pagination from '../components/Pagination.vue'
 import { formatErrorBody } from '../utils/apiError'
+import { useI18n } from '../composables/useI18n'
 
 const { apiAuthHeader, currentUser } = useAuth()
 const { get: getCache, set: setCache } = useApiCache()
+const { t } = useI18n()
 
 const isLoggedIn = computed(() => Boolean(currentUser.value?.username))
 const canModify = computed(() => currentUser.value?.role !== 'VIEWER')
@@ -64,6 +66,7 @@ const {
     ValidationRules.number('Please enter a valid number'),
     ValidationRules.nonNegativeNumber('Emission factor cannot be negative'),
   ],
+  hasEnvironmentalCertification: [],
 })
 
 function setMsg(text, kind = 'err') {
@@ -294,14 +297,14 @@ watch(
   <div class="supplier-page">
     <template v-if="!isLoggedIn">
       <header class="supplier-page__head">
-        <h1 class="supplier-page__title">Supplier Management</h1>
+        <h1 class="supplier-page__title">{{ t('supplier-management-page-title') }}</h1>
       </header>
-      <p class="guest-notice" role="status">You need to log in to be able to view this page</p>
+      <p class="guest-notice" role="status">{{ t('login-to-view-suppliers') }}</p>
     </template>
 
     <template v-else>
       <header class="supplier-page__head">
-        <h1 class="supplier-page__title">Supplier Management</h1>
+        <h1 class="supplier-page__title">{{ t('supplier-management-page-title') }}</h1>
       </header>
 
       <p
@@ -316,13 +319,13 @@ watch(
       <div class="toolbar">
         <label v-if="canModify" class="toolbar-check">
           <input v-model="certifiedOnly" type="checkbox" @change="onToggleCertifiedFilter" />
-          Certified suppliers only
+          {{ t('certified-suppliers-only') }}
         </label>
         <div class="toolbar-actions">
           <button type="button" class="btn btn--ghost" :disabled="loading" @click="loadList">
-            {{ loading ? 'Loading…' : 'Refresh' }}
+            {{ loading ? t('loading') : t('refresh') }}
           </button>
-          <button v-if="canModify" type="button" class="btn btn--primary" @click="openCreate">New supplier</button>
+          <button v-if="canModify" type="button" class="btn btn--primary" @click="openCreate">{{ t('new-supplier') }}</button>
         </div>
       </div>
 
@@ -330,12 +333,12 @@ watch(
         <table class="data-table">
           <thead>
             <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Country / region</th>
-              <th scope="col">Certified</th>
-              <th scope="col">Emission factor</th>
-              <th scope="col">Contact email</th>
-              <th v-if="canModify" scope="col" class="col-actions">Actions</th>
+              <th scope="col">{{ t('name') }}</th>
+              <th scope="col">{{ t('country-region') }}</th>
+              <th scope="col">{{ t('certified') }}</th>
+              <th scope="col">{{ t('emission-factor') }}</th>
+              <th scope="col">{{ t('contact-email') }}</th>
+              <th v-if="canModify" scope="col" class="col-actions">{{ t('actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -349,19 +352,27 @@ watch(
             </template>
             <!-- Empty state -->
             <tr v-else-if="suppliers.length === 0">
-              <td colspan="6" class="empty-cell">No data</td>
+              <td colspan="6" class="empty-cell">{{ t('table-empty') }}</td>
             </tr>
             <!-- Data rows -->
             <tr v-else v-for="row in suppliers" :key="row.id">
               <td>{{ row.name || '—' }}</td>
               <td>{{ row.country || '—' }}</td>
-              <td>{{ row.hasEnvironmentalCertification ? 'Yes' : 'No' }}</td>
+              <td>
+                <span v-if="row.hasEnvironmentalCertification" class="certification-check">
+                  {{ t('yes') }}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="certification-icon">
+                    <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span v-else>{{ t('no') }}</span>
+              </td>
               <td>{{ row.emissionFactorPerUnit != null ? row.emissionFactorPerUnit : '—' }}</td>
               <td class="cell-email">{{ row.contactEmail || '—' }}</td>
               <td v-if="canModify" class="col-actions">
-                <button type="button" class="link-btn" @click="openEdit(row)">Edit</button>
+                <button type="button" class="link-btn" @click="openEdit(row)">{{ t('edit') }}</button>
                 <button type="button" class="link-btn link-btn--danger" @click="removeRow(row)">
-                  Delete
+                  {{ t('delete') }}
                 </button>
               </td>
             </tr>
@@ -382,13 +393,13 @@ watch(
       <div v-if="dialogOpen" class="dialog-backdrop" role="presentation" @click.self="closeDialog">
         <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="supplier-dialog-title">
           <h2 id="supplier-dialog-title" class="dialog__title">
-            {{ editingId != null ? 'Edit supplier' : 'New supplier' }}
+            {{ editingId != null ? t('edit-supplier') : t('new-supplier') }}
           </h2>
           <form class="dialog__form" @submit.prevent="saveSupplier" novalidate>
             <!-- Name Field -->
             <div class="form-field" :class="{ 'form-field--error': formTouched.name && formErrors.name }">
               <label for="supplier-name" class="form-field__label">
-                Name <span class="form-field__required">*</span>
+                {{ t('name') }} <span class="form-field__required">*</span>
               </label>
               <div class="form-field__input-wrapper">
                 <input
@@ -398,7 +409,7 @@ watch(
                   type="text"
                   autocomplete="organization"
                   :class="{ 'form-field__input--error': formTouched.name && formErrors.name }"
-                  placeholder="Enter supplier name"
+                  :placeholder="t('enter-supplier-name')"
                   @blur="touchFormField('name')"
                 />
                 <span
@@ -429,7 +440,7 @@ watch(
 
             <!-- Country Field -->
             <div class="form-field" :class="{ 'form-field--error': formTouched.country && formErrors.country }">
-              <label for="supplier-country" class="form-field__label">Country / region</label>
+              <label for="supplier-country" class="form-field__label">{{ t('country-region') }}</label>
               <div class="form-field__input-wrapper">
                 <input
                   id="supplier-country"
@@ -437,7 +448,7 @@ watch(
                   class="form-field__input"
                   type="text"
                   :class="{ 'form-field__input--error': formTouched.country && formErrors.country }"
-                  placeholder="Enter country or region"
+                  :placeholder="t('enter-country-region')"
                   @blur="touchFormField('country')"
                 />
               </div>
@@ -448,7 +459,7 @@ watch(
 
             <!-- Email Field -->
             <div class="form-field" :class="{ 'form-field--error': formTouched.contactEmail && formErrors.contactEmail }">
-              <label for="supplier-email" class="form-field__label">Contact email</label>
+              <label for="supplier-email" class="form-field__label">{{ t('contact-email') }}</label>
               <div class="form-field__input-wrapper">
                 <input
                   id="supplier-email"
@@ -457,7 +468,7 @@ watch(
                   type="email"
                   autocomplete="off"
                   :class="{ 'form-field__input--error': formTouched.contactEmail && formErrors.contactEmail }"
-                  placeholder="contact@supplier.com"
+                  :placeholder="t('contact-email-placeholder')"
                   @blur="touchFormField('contactEmail')"
                 />
                 <span
@@ -489,7 +500,7 @@ watch(
             <!-- Emission Factor Field -->
             <div class="form-field" :class="{ 'form-field--error': formTouched.emissionFactorPerUnit && formErrors.emissionFactorPerUnit }">
               <label for="supplier-emission" class="form-field__label">
-                Emission factor per unit
+                {{ t('emission-factor-per-unit') }}
               </label>
               <div class="form-field__input-wrapper">
                 <input
@@ -499,7 +510,7 @@ watch(
                   type="text"
                   inputmode="decimal"
                   :class="{ 'form-field__input--error': formTouched.emissionFactorPerUnit && formErrors.emissionFactorPerUnit }"
-                  placeholder="e.g., 0.5"
+                  :placeholder="t('emission-factor-placeholder')"
                   @blur="touchFormField('emissionFactorPerUnit')"
                 />
                 <span
@@ -527,19 +538,19 @@ watch(
                 {{ formErrors.emissionFactorPerUnit }}
               </p>
               <p v-else class="form-field__message form-field__message--hint">
-                Optional: emissions per production unit
+                {{ t('optional-emission-hint') }}
               </p>
             </div>
 
             <!-- Environmental Certification Checkbox -->
             <label class="field field--inline">
               <input v-model="form.hasEnvironmentalCertification" type="checkbox" />
-              <span class="field__label">Has environmental certification</span>
+              <span class="field__label">{{ t('has-environmental-certification') }}</span>
             </label>
 
             <div class="dialog__actions">
-              <button type="button" class="btn btn--ghost" @click="closeDialog">Cancel</button>
-              <button type="submit" class="btn btn--primary">Save</button>
+              <button type="button" class="btn btn--ghost" @click="closeDialog">{{ t('cancel') }}</button>
+              <button type="submit" class="btn btn--primary">{{ t('save') }}</button>
             </div>
           </form>
         </div>
@@ -903,5 +914,17 @@ watch(
   100% {
     background-position: -200% 0;
   }
+}
+
+/* Certification checkbox styling */
+.certification-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.certification-icon {
+  color: #528951;
+  flex-shrink: 0;
 }
 </style>

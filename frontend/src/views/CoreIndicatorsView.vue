@@ -12,9 +12,11 @@ import {
   getHistoryAnalysisOption,
 } from '../utils/chartConfig'
 import SkeletonLoader from '../components/SkeletonLoader.vue'
+import { useI18n } from '../composables/useI18n'
 
 const { apiAuthHeader, currentUser } = useAuth()
 const { get: getCache, set: setCache } = useApiCache()
+const { t, currentLocale } = useI18n()
 
 const isLoggedIn = computed(() => Boolean(currentUser.value?.username))
 
@@ -52,6 +54,7 @@ async function apiFetch(path, options = {}) {
 
 function initCharts() {
   if (!summary.value) return
+  const locale = currentLocale.value || 'en'
 
   if (emissionsChart.value) {
     const existingChart = echarts.getInstanceByDom(emissionsChart.value)
@@ -59,7 +62,7 @@ function initCharts() {
       existingChart.dispose()
     }
     const chart = echarts.init(emissionsChart.value)
-    chart.setOption(getCarbonEmissionsOption(summary.value))
+    chart.setOption(getCarbonEmissionsOption(summary.value, locale))
   }
 
   if (supplierChart.value) {
@@ -68,7 +71,7 @@ function initCharts() {
       existingChart.dispose()
     }
     const chart = echarts.init(supplierChart.value)
-    chart.setOption(getSupplierDistributionOption(summary.value))
+    chart.setOption(getSupplierDistributionOption(summary.value, locale))
   }
 
   if (shipmentChart.value) {
@@ -77,7 +80,7 @@ function initCharts() {
       existingChart.dispose()
     }
     const chart = echarts.init(shipmentChart.value)
-    chart.setOption(getSupplyChainMetricsOption(summary.value))
+    chart.setOption(getSupplyChainMetricsOption(summary.value, locale))
   }
 
   if (trendChart.value) {
@@ -86,7 +89,7 @@ function initCharts() {
       existingChart.dispose()
     }
     const chart = echarts.init(trendChart.value)
-    chart.setOption(getCarbonEmissionsTrendOption(summary.value, availableYears.value))
+    chart.setOption(getCarbonEmissionsTrendOption(summary.value, availableYears.value, locale))
   }
 }
 
@@ -192,10 +195,10 @@ function initHistoryChart() {
   if (existingChart) {
     existingChart.dispose()
   }
-  
+
   const chart = echarts.init(historyChart.value)
   const analysis = historyAnalysis.value
-  chart.setOption(getHistoryAnalysisOption(analysis))
+  chart.setOption(getHistoryAnalysisOption(analysis, currentLocale.value || 'en'))
 }
 
 watch(
@@ -241,14 +244,14 @@ onMounted(() => {
   <div class="page">
     <template v-if="!isLoggedIn">
       <header class="page__head">
-        <h1 class="page__title">Core indicators</h1>
+        <h1 class="page__title">{{ t('core-indicators-page-title') }}</h1>
       </header>
-      <p class="guest-notice" role="status">You need to log in to view core sustainability indicators.</p>
+      <p class="guest-notice" role="status">{{ t('login-to-view-indicators') }}</p>
     </template>
 
     <template v-else>
       <header class="page__head">
-        <h1 class="page__title">Core indicators</h1>
+        <h1 class="page__title">{{ t('core-indicators-page-title') }}</h1>
       </header>
 
       <p
@@ -262,7 +265,7 @@ onMounted(() => {
 
       <div class="toolbar">
         <button type="button" class="btn btn--ghost" :disabled="loading" @click="loadSummary">
-          {{ loading ? 'Loading…' : 'Refresh' }}
+          {{ loading ? t('loading') : t('refresh') }}
         </button>
       </div>
 
@@ -291,16 +294,16 @@ onMounted(() => {
           <!-- First row: 3 items -->
           <div class="kpi-row" role="list">
             <article class="kpi-card" role="listitem">
-              <h2 class="kpi-card__label">Total carbon emissions</h2>
+              <h2 class="kpi-card__label">{{ t('total-carbon-emissions') }}</h2>
               <p class="kpi-card__value">{{ Number(summary.totalEmissionsKg).toFixed(2) }} <span class="unit">{{ summary.emissionsUnit }}</span></p>
             </article>
             <article class="kpi-card" role="listitem">
-              <h2 class="kpi-card__label">Estimated avoided emissions</h2>
-              <p class="kpi-card__value">{{ Number(summary.estimatedAvoidedEmissionsKg).toFixed(2) }} <span class="unit">kg CO2e</span></p>
-              <p class="kpi-card__hint">vs assuming every shipment used the highest emission factor among configured modes</p>
+              <h2 class="kpi-card__label">{{ t('estimated-avoided-emissions') }}</h2>
+              <p class="kpi-card__value">{{ Number(summary.estimatedAvoidedEmissionsKg).toFixed(2) }} <span class="unit">{{ t('kg-co2') }}</span></p>
+              <p class="kpi-card__hint">{{ t('vs-highest-emission') }}</p>
             </article>
             <article class="kpi-card" role="listitem">
-              <h2 class="kpi-card__label">Reduction vs worst-mode baseline</h2>
+              <h2 class="kpi-card__label">{{ t('reduction-vs-baseline') }}</h2>
               <p class="kpi-card__value">{{ Number(summary.reductionPercentVsHighestFactorMode).toFixed(2) }}<span class="unit">%</span></p>
             </article>
           </div>
@@ -308,19 +311,19 @@ onMounted(() => {
           <!-- Second row: 4 items -->
           <div class="kpi-row kpi-row--four" role="list">
             <article class="kpi-card" role="listitem">
-              <h2 class="kpi-card__label">Shipments recorded</h2>
+              <h2 class="kpi-card__label">{{ t('shipments-recorded') }}</h2>
               <p class="kpi-card__value">{{ summary.shipmentCount }}</p>
             </article>
             <article class="kpi-card" role="listitem">
-              <h2 class="kpi-card__label">Registered suppliers</h2>
+              <h2 class="kpi-card__label">{{ t('registered-suppliers') }}</h2>
               <p class="kpi-card__value">{{ summary.registeredSupplierCount }}</p>
             </article>
             <article class="kpi-card" role="listitem">
-              <h2 class="kpi-card__label">Certified suppliers</h2>
+              <h2 class="kpi-card__label">{{ t('certified-suppliers') }}</h2>
               <p class="kpi-card__value">{{ summary.certifiedSupplierCount }}</p>
             </article>
             <article class="kpi-card" role="listitem">
-              <h2 class="kpi-card__label">Non-certified suppliers</h2>
+              <h2 class="kpi-card__label">{{ t('non-certified-suppliers') }}</h2>
               <p class="kpi-card__value">{{ summary.registeredSupplierCount - summary.certifiedSupplierCount }}</p>
             </article>
           </div>
@@ -328,51 +331,51 @@ onMounted(() => {
           <!-- Third row: 1 item -->
           <div class="kpi-row kpi-row--one" role="list">
             <article class="kpi-card kpi-card--full" role="listitem">
-              <h2 class="kpi-card__label">Enterprises in active supply chain</h2>
+              <h2 class="kpi-card__label">{{ t('enterprises-in-supply-chain') }}</h2>
               <p class="kpi-card__value">{{ summary.enterprisesInSupplyChain }}</p>
-              <p class="kpi-card__hint">Distinct suppliers linked to at least one shipment</p>
+              <p class="kpi-card__hint">{{ t('distinct-suppliers-hint') }}</p>
             </article>
           </div>
         </div>
         
         <!-- Charts Section -->
         <div class="charts-container">
-          <h2 class="section-title">Sustainability Insights</h2>
+          <h2 class="section-title">{{ t('sustainability-insights') }}</h2>
           
           <!-- History Analysis Section -->
           <div v-if="historyAnalysis" class="history-analysis-section" :class="{ 'history-analysis-section--empty': !historyAnalysis.total_shipments }">
-            <h3 class="subsection-title">History Analysis & Smart Recommendations</h3>
+            <h3 class="subsection-title">{{ t('history-analysis') }}</h3>
             <div class="history-kpi-row">
               <div class="kpi-card-mini">
-                <h4 class="kpi-card-mini__label">Total Shipments</h4>
+                <h4 class="kpi-card-mini__label">{{ t('total-shipments') }}</h4>
                 <p class="kpi-card-mini__value">{{ historyAnalysis.total_shipments }}</p>
               </div>
               <div class="kpi-card-mini">
-                <h4 class="kpi-card-mini__label">Total Carbon Emission</h4>
-                <p class="kpi-card-mini__value">{{ Number(historyAnalysis.total_carbon_emission).toFixed(2) }} <span class="unit-sm">kg CO2e</span></p>
+                <h4 class="kpi-card-mini__label">{{ t('total-carbon-emission') }}</h4>
+                <p class="kpi-card-mini__value">{{ Number(historyAnalysis.total_carbon_emission).toFixed(2) }} <span class="unit-sm">{{ t('kg-co2') }}</span></p>
               </div>
               <div class="kpi-card-mini">
-                <h4 class="kpi-card-mini__label">Average Emission/Shipment</h4>
-                <p class="kpi-card-mini__value">{{ Number(historyAnalysis.average_emission_per_shipment).toFixed(2) }} <span class="unit-sm">kg CO2e</span></p>
+                <h4 class="kpi-card-mini__label">{{ t('average-emission-per-shipment') }}</h4>
+                <p class="kpi-card-mini__value">{{ Number(historyAnalysis.average_emission_per_shipment).toFixed(2) }} <span class="unit-sm">{{ t('kg-co2') }}</span></p>
               </div>
               <div class="kpi-card-mini">
-                <h4 class="kpi-card-mini__label">Most Used Mode</h4>
+                <h4 class="kpi-card-mini__label">{{ t('most-used-mode') }}</h4>
                 <p class="kpi-card-mini__value">{{ historyAnalysis.most_used_transport_mode }}</p>
               </div>
               <div class="kpi-card-mini">
-                <h4 class="kpi-card-mini__label">Lowest Carbon Mode</h4>
+                <h4 class="kpi-card-mini__label">{{ t('lowest-carbon-mode') }}</h4>
                 <p class="kpi-card-mini__value">{{ historyAnalysis.lowest_carbon_transport_mode }}</p>
               </div>
             </div>
             
             <div class="history-savings">
               <div class="savings-card">
-                <h4 class="savings-card__title">Potential Savings</h4>
+                <h4 class="savings-card__title">{{ t('potential-savings') }}</h4>
                 <p class="savings-card__percent">{{ Number(historyAnalysis.potential_savings_percent).toFixed(1) }}%</p>
-                <p class="savings-card__amount">({{ Number(historyAnalysis.potential_savings_amount).toFixed(2) }} kg CO2e)</p>
+                <p class="savings-card__amount">({{ Number(historyAnalysis.potential_savings_amount).toFixed(2) }} {{ t('kg-co2') }})</p>
               </div>
               <div class="recommendation-card">
-                <h4 class="recommendation-card__title">Recommendation</h4>
+                <h4 class="recommendation-card__title">{{ t('recommendation') }}</h4>
                 <p class="recommendation-card__text">{{ historyAnalysis.recommendation }}</p>
               </div>
             </div>

@@ -3,11 +3,13 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { useFormValidation, ValidationRules } from '../composables/useFormValidation'
+import { useI18n } from '../composables/useI18n'
 import { formatErrorBody } from '../utils/apiError'
 
 const route = useRoute()
 const router = useRouter()
 const { setLoggedIn } = useAuth()
+const { t } = useI18n()
 
 // 表单验证
 const {
@@ -19,12 +21,12 @@ const {
   resetValidation,
 } = useFormValidation({
   username: [
-    ValidationRules.required('Please enter your username or email'),
-    ValidationRules.minLength(3, 'Username must be at least 3 characters'),
+    ValidationRules.required(t('please-enter-username')),
+    ValidationRules.minLength(3, t('username-min-length')),
   ],
   password: [
-    ValidationRules.required('Please enter your password'),
-    ValidationRules.minLength(6, 'Password must be at least 6 characters'),
+    ValidationRules.required(t('please-enter-password')),
+    ValidationRules.minLength(6, t('password-min-length')),
   ],
 })
 
@@ -44,7 +46,7 @@ async function onSubmit() {
   // 验证所有字段
   const isValid = await validateAll()
   if (!isValid) {
-    message.value = 'Please fix the errors above before submitting.'
+    message.value = t('fix-errors')
     return
   }
 
@@ -87,8 +89,7 @@ async function onSubmit() {
     const text = await res.text()
     message.value = formatErrorBody(res.status, text)
   } catch {
-    message.value =
-      'Cannot reach the server. Check that the backend is on port 8080 and that you run npm run dev (or npm run preview) so /api is proxied.'
+    message.value = t('server-error')
   } finally {
     isSubmitting.value = false
   }
@@ -110,7 +111,7 @@ function goReset() {
 <template>
   <div class="auth-form-wrap">
     <form class="auth-form-panel" @submit.prevent="onSubmit" novalidate>
-      <h1 class="auth-form-title">Log in</h1>
+      <h1 class="auth-form-title">{{ t('log-in') }}</h1>
 
       <!-- Username Field -->
       <div class="field-wrapper" :class="{ 'field-wrapper--error': touched.username && errors.username }">
@@ -123,8 +124,8 @@ function goReset() {
             'input--error': touched.username && errors.username,
             'input--success': touched.username && !errors.username && fields.username
           }"
-          placeholder="Username or Email"
-          aria-label="Username or Email"
+          :placeholder="t('username')"
+          :aria-label="t('username')"
           @blur="onFieldBlur('username')"
         />
         <p v-if="touched.username && errors.username" class="field-error">{{ errors.username }}</p>
@@ -141,8 +142,8 @@ function goReset() {
             'input--error': touched.password && errors.password,
             'input--success': touched.password && !errors.password && fields.password
           }"
-          placeholder="Password"
-          aria-label="Password"
+          :placeholder="t('password')"
+          :aria-label="t('password')"
           @blur="onFieldBlur('password')"
         />
         <p v-if="touched.password && errors.password" class="field-error">{{ errors.password }}</p>
@@ -150,10 +151,10 @@ function goReset() {
 
       <p v-if="message" class="auth-form-msg auth-form-msg--err">{{ message }}</p>
 
-      <button type="button" class="auth-form-link" @click="goReset">Forgot the password?</button>
-      <button type="button" class="auth-form-link" @click="goRegister">Don't have an account?</button>
+      <button type="button" class="auth-form-link" @click="goReset">{{ t('forgot-password') }}</button>
+      <button type="button" class="auth-form-link" @click="goRegister">{{ t('dont-have-account') }}</button>
       <button type="submit" class="auth-form-submit" :disabled="isSubmitting">
-        {{ isSubmitting ? 'Signing in...' : 'Log in' }}
+        {{ isSubmitting ? t('signing-in') : t('log-in') }}
       </button>
     </form>
   </div>

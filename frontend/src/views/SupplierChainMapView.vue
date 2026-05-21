@@ -1,7 +1,9 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, reactive } from 'vue'
 import Globe from 'globe.gl'
+import { useI18n } from '../composables/useI18n'
 
+const { t, currentLocale } = useI18n()
 const globeEl = ref(null)
 let globeInstance = null
 let resizeHandler = null
@@ -422,9 +424,9 @@ function initGlobe() {
       .pointLabel(
         (d) => {
           if (d.type === 'supplier') {
-            return `<div style="padding:4px 6px;"><b>${d.name}</b><br/>${d.city}, ${d.country}<br/><span style="opacity:.85;">${d.industry}</span></div>`
+            return `<div style="padding:4px 6px;"><b>${d.name}</b><br/>${d.city}, ${d.country}<br/><span style="opacity:.85;">${t('industry')}: ${d.industry}</span></div>`
           } else {
-            return `<div style="padding:4px 6px;"><b>${d.name}</b><br/>${d.type === 'origin' ? 'Origin' : 'Destination'}<br/><span style="opacity:.85;">${d.lat.toFixed(4)}, ${d.lng.toFixed(4)}</span></div>`
+            return `<div style="padding:4px 6px;"><b>${d.name}</b><br/>${d.type === 'origin' ? t('origin') : t('destination')}<br/><span style="opacity:.85;">${t('coordinates')}: ${d.lat.toFixed(4)}, ${d.lng.toFixed(4)}</span></div>`
           }
         }
       )
@@ -457,59 +459,63 @@ function initGlobe() {
           })
         }
         
+        // Check if dark mode is active
+        const isDark = document.documentElement.classList.contains('dark-mode')
+        const headerColor = isDark ? '#81c784' : '#3d5340'
+        
         // Create popup content
         let popupContent = `<div style="padding:10px; max-width: 300px;">
-          <h3 style="margin-top: 0; color: #3d5340;">${d.name}</h3>
+          <h3 style="margin-top: 0; color: ${headerColor};">${d.name}</h3>
         `
-        
+
         // Add location details based on type
         if (d.type === 'supplier') {
           popupContent += `
-            <p><strong>Location:</strong> ${d.city}, ${d.country}</p>
-            <p><strong>Industry:</strong> ${d.industry}</p>
-            <p><strong>Certified:</strong> ${d.hasEnvironmentalCertification ? 'Yes' : 'No'}</p>
+            <p><strong>${t('location')}:</strong> ${d.city}, ${d.country}</p>
+            <p><strong>${t('industry')}:</strong> ${d.industry}</p>
+            <p><strong>${t('certified')}:</strong> ${d.hasEnvironmentalCertification ? t('yes') : t('no')}</p>
           `
         } else {
           popupContent += `
-            <p><strong>Type:</strong> ${d.type === 'origin' ? 'Origin' : 'Destination'}</p>
-            <p><strong>Coordinates:</strong> ${d.lat.toFixed(4)}, ${d.lng.toFixed(4)}</p>
+            <p><strong>${t('type')}:</strong> ${d.type === 'origin' ? t('origin') : t('destination')}</p>
+            <p><strong>${t('coordinates')}:</strong> ${d.lat.toFixed(4)}, ${d.lng.toFixed(4)}</p>
           `
         }
-        
+
         // Add shipment routes
         popupContent += `
-          <h4 style="margin-top: 10px; margin-bottom: 5px; color: #3d5340;">Shipment Routes</h4>
+          <h4 style="margin-top: 10px; margin-bottom: 5px; color: ${headerColor};">${t('shipment-routes')}</h4>
           <ul style="margin: 0; padding-left: 20px;">
         `
-        
+
         if (relatedRoutes.length > 0) {
           relatedRoutes.forEach(route => {
             if (d.type === 'origin') {
-              popupContent += `<li>To: ${route.destination || 'Unknown'}<br/>
-                Supplier: ${route.supplierName || 'Unknown'}<br/>
-                Mode: ${route.mode}<br/>
-                Weight: ${route.weight.toFixed(0)} kg<br/>
-                Emissions: ${route.emissions.toFixed(2)} kg CO2e</li>`
+              popupContent += `<li>${t('to')}: ${route.destination || t('unknown')}<br/>
+                ${t('supplier')}: ${route.supplierName || t('unknown')}<br/>
+                ${t('mode')}: ${route.mode}<br/>
+                ${t('weight')}: ${route.weight.toFixed(0)} ${t('kg')}<br/>
+                ${t('emissions')}: ${route.emissions.toFixed(2)} ${t('kg')} CO2e</li>`
             } else if (d.type === 'destination') {
-              popupContent += `<li>From: ${route.origin || 'Unknown'}<br/>
-                Supplier: ${route.supplierName || 'Unknown'}<br/>
-                Mode: ${route.mode}<br/>
-                Weight: ${route.weight.toFixed(0)} kg<br/>
-                Emissions: ${route.emissions.toFixed(2)} kg CO2e</li>`
+              popupContent += `<li>${t('from')}: ${route.origin || t('unknown')}<br/>
+                ${t('supplier')}: ${route.supplierName || t('unknown')}<br/>
+                ${t('mode')}: ${route.mode}<br/>
+                ${t('weight')}: ${route.weight.toFixed(0)} ${t('kg')}<br/>
+                ${t('emissions')}: ${route.emissions.toFixed(2)} ${t('kg')} CO2e</li>`
             } else {
-              const toLocation = route.destination || 'Unknown'
-              popupContent += `<li>To: ${toLocation}<br/>
-                Mode: ${route.mode}<br/>
-                Weight: ${route.weight.toFixed(0)} kg<br/>
-                Emissions: ${route.emissions.toFixed(2)} kg CO2e</li>`
+              const toLocation = route.destination || t('unknown')
+              popupContent += `<li>${t('to')}: ${toLocation}<br/>
+                ${t('mode')}: ${route.mode}<br/>
+                ${t('weight')}: ${route.weight.toFixed(0)} ${t('kg')}<br/>
+                ${t('emissions')}: ${route.emissions.toFixed(2)} ${t('kg')} CO2e</li>`
             }
           })
         } else {
-          popupContent += '<li>No shipment routes found</li>'
+          popupContent += `<li>${t('no-shipment-routes')}</li>`
         }
-        
+
         popupContent += `</ul></div>`
-        
+
         // Create and show popup
         const popup = document.createElement('div')
         popup.innerHTML = popupContent
@@ -518,22 +524,24 @@ function initGlobe() {
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
-          background: white;
+          background: ${isDark ? '#2a2a4a' : 'white'};
+          color: ${isDark ? '#e0e0e0' : '#1a241a'};
           border-radius: 8px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
           z-index: 10000;
           max-width: 90%;
           max-height: 80vh;
           overflow-y: auto;
+          border: 1px solid ${isDark ? '#4a4a6a' : '#c5d6c5'};
         `
         
         // Add close button
         const closeButton = document.createElement('button')
-        closeButton.textContent = 'Close'
+        closeButton.textContent = t('close')
         closeButton.style.cssText = `
           margin-top: 10px;
           padding: 5px 10px;
-          background: #3d5340;
+          background: ${isDark ? '#3a5a3a' : '#3d5340'};
           color: white;
           border: none;
           border-radius: 4px;
@@ -542,7 +550,7 @@ function initGlobe() {
         closeButton.onclick = () => {
           document.body.removeChild(popup)
         }
-        
+
         popup.appendChild(closeButton)
         document.body.appendChild(popup)
       })
@@ -562,7 +570,7 @@ function initGlobe() {
         .arcStroke((d) => Math.max((d.emissions / 90000) * (d.weight / 40000), 0.2)) // Calculate stroke width based on both emissions and weight, minimum 0.1
         .arcLabel(
           (d) =>
-            `<div style="padding:4px 6px;"><strong>From:</strong> ${d.origin || 'Unknown'}<br/><strong>To:</strong> ${d.destination || 'Unknown'}<br/><strong>Weight:</strong> ${d.weight.toFixed(0)} kg<br/><strong>Emissions:</strong> ${d.emissions.toFixed(2)} kg CO2e<br/><strong>Mode:</strong> ${d.mode}</div>`
+            `<div style="padding:4px 6px;"><strong>${t('from')}:</strong> ${d.origin || t('unknown')}<br/><strong>${t('to')}:</strong> ${d.destination || t('unknown')}<br/><strong>${t('weight')}:</strong> ${d.weight.toFixed(0)} ${t('kg')}<br/><strong>${t('emissions')}:</strong> ${d.emissions.toFixed(2)} ${t('kg')} CO2e<br/><strong>${t('mode')}:</strong> ${d.mode}</div>`
         )
         .arcStartLat('startLat')
         .arcStartLng('startLng')
@@ -571,23 +579,32 @@ function initGlobe() {
         .arcDashLength(0) // Ensure solid lines
         .onArcClick((arc) => {
           // Get route details directly from arc data
-          const originInfo = arc.origin || 'Unknown'
-          const destInfo = arc.destination || 'Unknown'
-          const supplierInfo = arc.supplierName || 'Unknown'
-          
+          const originInfo = arc.origin || t('unknown')
+          const destInfo = arc.destination || t('unknown')
+          const supplierInfo = arc.supplierName || t('unknown')
+
+          // Check if dark mode is active
+          const isDark = document.documentElement.classList.contains('dark-mode')
+          const bgColor = isDark ? '#2a2a4a' : 'white'
+          const textColor = isDark ? '#e0e0e0' : '#1a241a'
+          const headerColor = isDark ? '#81c784' : '#3d5340'
+          const borderColor = isDark ? '#4a4a6a' : '#c5d6c5'
+
           // Create popup for route details
           const popup = document.createElement('div')
           popup.style.position = 'fixed'
           popup.style.top = '50%'
           popup.style.left = '50%'
           popup.style.transform = 'translate(-50%, -50%)'
-          popup.style.backgroundColor = 'white'
+          popup.style.backgroundColor = bgColor
+          popup.style.color = textColor
           popup.style.padding = '16px'
           popup.style.borderRadius = '8px'
-          popup.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)'
+          popup.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.25)'
           popup.style.zIndex = '1000'
           popup.style.maxWidth = '400px'
-          
+          popup.style.border = `1px solid ${borderColor}`
+
           // Create close button
           const closeButton = document.createElement('button')
           closeButton.textContent = '×'
@@ -598,34 +615,35 @@ function initGlobe() {
           closeButton.style.border = 'none'
           closeButton.style.fontSize = '20px'
           closeButton.style.cursor = 'pointer'
-          
+          closeButton.style.color = headerColor
+
           closeButton.onclick = () => {
             document.body.removeChild(popup)
           }
-          
+
           // Populate popup content
           popup.innerHTML = `
-            <h3 style="margin-top: 0; margin-bottom: 12px;">Route Details</h3>
+            <h3 style="margin-top: 0; margin-bottom: 12px; color: ${headerColor};">${t('route-details')}</h3>
             <div style="margin-bottom: 8px;">
-              <strong>Supplier:</strong> ${supplierInfo}
+              <strong>${t('supplier')}:</strong> ${supplierInfo}
             </div>
             <div style="margin-bottom: 8px;">
-              <strong>From:</strong> ${originInfo}
+              <strong>${t('from')}:</strong> ${originInfo}
             </div>
             <div style="margin-bottom: 8px;">
-              <strong>To:</strong> ${destInfo}
+              <strong>${t('to')}:</strong> ${destInfo}
             </div>
             <div style="margin-bottom: 8px;">
-              <strong>Mode:</strong> ${arc.mode}
+              <strong>${t('mode')}:</strong> ${arc.mode}
             </div>
             <div style="margin-bottom: 8px;">
-              <strong>Weight:</strong> ${arc.weight.toFixed(0)} kg
+              <strong>${t('weight')}:</strong> ${arc.weight.toFixed(0)} ${t('kg')}
             </div>
             <div style="margin-bottom: 8px;">
-              <strong>Emissions:</strong> ${arc.emissions.toFixed(2)} kg CO2e
+              <strong>${t('emissions')}:</strong> ${arc.emissions.toFixed(2)} ${t('kg')} CO2e
             </div>
           `
-          
+
           popup.appendChild(closeButton)
           document.body.appendChild(popup)
         })
@@ -725,15 +743,15 @@ onBeforeUnmount(() => {
 <template>
   <div class="supplier-chain-map">
     <header class="page__head">
-      <h1 class="page__title">Supplier Chain Map</h1>
-      <p class="page__description">Interactive visualization of global supply chain network</p>
+      <h1 class="page__title">{{ t('supplier-chain-map-page-title') }}</h1>
+      <p class="page__description">{{ t('interactive-map-desc') }}</p>
     </header>
 
     <div class="globe-container">
       <!-- Loading skeleton -->
       <div v-if="loading" class="globe-skeleton">
         <div class="loading-spinner"></div>
-        <p class="skeleton-text">Loading...</p>
+        <p class="skeleton-text">{{ t('loading') }}</p>
       </div>
 
       <!-- Error message -->
@@ -746,24 +764,24 @@ onBeforeUnmount(() => {
           </svg>
         </div>
         <p class="error-message">{{ errorMessage }}</p>
-        <button class="retry-btn" @click="fetchData">Retry</button>
+        <button class="retry-btn" @click="fetchData">{{ t('retry') }}</button>
       </div>
 
       <!-- Globe -->
       <div v-show="!loading && !errorMessage" ref="globeEl" class="globe-canvas" />
 
       <div v-if="!loading && !errorMessage" class="map-legend">
-        <h3>Legend</h3>
+        <h3>{{ t('legend') }}</h3>
         <div class="legend-item">
           <span class="legend-dot supplier-dot"></span>
-          <span>Supplier Location</span>
+          <span>{{ t('supplier-location') }}</span>
         </div>
         <div class="legend-item">
           <span class="legend-line"></span>
-          <span>Shipment Route</span>
+          <span>{{ t('shipment-route') }}</span>
         </div>
         <div class="legend-item">
-          <span class="legend-info">Click on suppliers or routes for details</span>
+          <span class="legend-info">{{ t('click-for-details') }}</span>
         </div>
       </div>
     </div>

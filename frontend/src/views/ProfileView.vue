@@ -30,6 +30,14 @@ const messageKind = ref('err')
 const editMode = ref(false)
 const editForm = ref({})
 
+// Admin-specific state
+const allSuppliers = ref([])
+const allShipments = ref([])
+const adminLoading = ref(false)
+const editingSupplier = ref(null)
+const editingShipment = ref(null)
+const adminEditForm = ref({})
+
 // Transport recommendation state
 const showRecommendation = ref(false)
 const recommendation = ref(null)
@@ -179,6 +187,159 @@ async function loadSupplierShipments() {
   }
 }
 
+// Admin functions to load all suppliers and shipments
+async function loadAllSuppliers() {
+  if (!currentUser.value || currentUser.value.role !== 'ADMIN') return
+  adminLoading.value = true
+  try {
+    const res = await apiFetch('/api/suppliers')
+    const text = await res.text()
+    if (!res.ok) {
+      setMsg('Failed to load suppliers')
+      return
+    }
+    allSuppliers.value = text ? JSON.parse(text) : []
+  } catch {
+    setMsg('Failed to load suppliers')
+  } finally {
+    adminLoading.value = false
+  }
+}
+
+async function loadAllShipments() {
+  if (!currentUser.value || currentUser.value.role !== 'ADMIN') return
+  adminLoading.value = true
+  try {
+    const res = await apiFetch('/api/shipments')
+    const text = await res.text()
+    if (!res.ok) {
+      setMsg('Failed to load shipments')
+      return
+    }
+    allShipments.value = text ? JSON.parse(text) : []
+  } catch {
+    setMsg('Failed to load shipments')
+  } finally {
+    adminLoading.value = false
+  }
+}
+
+// Admin edit supplier functions
+function startEditSupplier(supplier) {
+  editingSupplier.value = supplier.id
+  adminEditForm.value = { ...supplier }
+}
+
+async function saveSupplierEdit() {
+  if (!editingSupplier.value || !adminEditForm.value) return
+  adminLoading.value = true
+  try {
+    const res = await apiFetch(`/api/suppliers/${editingSupplier.value}`, {
+      method: 'PUT',
+      body: JSON.stringify(adminEditForm.value)
+    })
+    const text = await res.text()
+    if (!res.ok) {
+      setMsg('Failed to update supplier')
+      return
+    }
+    const updatedSupplier = text ? JSON.parse(text) : null
+    const index = allSuppliers.value.findIndex(s => s.id === editingSupplier.value)
+    if (index !== -1 && updatedSupplier) {
+      allSuppliers.value[index] = updatedSupplier
+    }
+    cancelSupplierEdit()
+    setMsg('Supplier updated successfully', 'ok')
+  } catch {
+    setMsg('Failed to update supplier')
+  } finally {
+    adminLoading.value = false
+  }
+}
+
+function cancelSupplierEdit() {
+  editingSupplier.value = null
+  adminEditForm.value = {}
+}
+
+async function deleteSupplier(supplierId) {
+  if (!confirm('Are you sure you want to delete this supplier?')) return
+  adminLoading.value = true
+  try {
+    const res = await apiFetch(`/api/suppliers/${supplierId}`, {
+      method: 'DELETE'
+    })
+    if (!res.ok) {
+      setMsg('Failed to delete supplier')
+      return
+    }
+    allSuppliers.value = allSuppliers.value.filter(s => s.id !== supplierId)
+    setMsg('Supplier deleted successfully', 'ok')
+  } catch {
+    setMsg('Failed to delete supplier')
+  } finally {
+    adminLoading.value = false
+  }
+}
+
+// Admin edit shipment functions
+function startEditShipment(shipment) {
+  editingShipment.value = shipment.id
+  adminEditForm.value = { ...shipment }
+}
+
+async function saveShipmentEdit() {
+  if (!editingShipment.value || !adminEditForm.value) return
+  adminLoading.value = true
+  try {
+    const res = await apiFetch(`/api/shipments/${editingShipment.value}`, {
+      method: 'PUT',
+      body: JSON.stringify(adminEditForm.value)
+    })
+    const text = await res.text()
+    if (!res.ok) {
+      setMsg('Failed to update shipment')
+      return
+    }
+    const updatedShipment = text ? JSON.parse(text) : null
+    const index = allShipments.value.findIndex(s => s.id === editingShipment.value)
+    if (index !== -1 && updatedShipment) {
+      allShipments.value[index] = updatedShipment
+    }
+    cancelShipmentEdit()
+    setMsg('Shipment updated successfully', 'ok')
+  } catch {
+    setMsg('Failed to update shipment')
+  } finally {
+    adminLoading.value = false
+  }
+}
+
+function cancelShipmentEdit() {
+  editingShipment.value = null
+  adminEditForm.value = {}
+}
+
+async function deleteShipment(shipmentId) {
+  if (!confirm('Are you sure you want to delete this shipment?')) return
+  adminLoading.value = true
+  try {
+    const res = await apiFetch(`/api/shipments/${shipmentId}`, {
+      method: 'DELETE'
+    })
+    if (!res.ok) {
+      setMsg('Failed to delete shipment')
+      return
+    }
+    allShipments.value = allShipments.value.filter(s => s.id !== shipmentId)
+    setMsg('Shipment deleted successfully', 'ok')
+  } catch {
+    setMsg('Failed to delete shipment')
+  } finally {
+    adminLoading.value = false
+  }
+}
+
 function calculateSupplierEmissions() {
   supplierEmissions.value = supplierShipments.value.reduce((total, shipment) => {
     return total + (shipment.calculatedCarbonEmission || 0)
@@ -307,6 +468,9 @@ onMounted(async () => {
     if (u.role === 'SUPPLIER') {
       await loadSupplierInfo()
       await loadSupplierShipments()
+    } else if (u.role === 'ADMIN') {
+      await loadAllSuppliers()
+      await loadAllShipments()
     }
     return
   }
@@ -323,6 +487,9 @@ onMounted(async () => {
     if (updatedUser.role === 'SUPPLIER') {
       await loadSupplierInfo()
       await loadSupplierShipments()
+    } else if (updatedUser.role === 'ADMIN') {
+      await loadAllSuppliers()
+      await loadAllShipments()
     }
   } catch {
     /* ignore */
@@ -543,6 +710,116 @@ onMounted(async () => {
             <div class="recommendation-actions">
               <button type="button" class="btn btn--ghost" @click="resetRecommendation">Get New Recommendation</button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin-specific section -->
+      <div v-if="currentUser.role === 'ADMIN'" class="admin-section">
+        <h2 class="admin-section__title">Admin Management</h2>
+
+        <p v-if="message" class="admin-section__alert" :class="{ 'admin-section__alert--ok': messageKind === 'ok' }" role="status">
+          {{ message }}
+        </p>
+
+        <!-- All Suppliers -->
+        <div class="admin-suppliers">
+          <h3 class="admin-section__subtitle">All Suppliers</h3>
+          <div v-if="adminLoading" class="loading-state">Loading...</div>
+          <div v-else-if="allSuppliers.length === 0" class="empty-state">
+            No suppliers found.
+          </div>
+          <div v-else class="supplier-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Company Name</th>
+                  <th>Country</th>
+                  <th>Contact Email</th>
+                  <th>Certified</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(supplier, index) in allSuppliers" :key="supplier.id">
+                  <template v-if="editingSupplier !== supplier.id">
+                    <td>{{ index + 1 }}</td>
+                    <td>{{ supplier.name || '—' }}</td>
+                    <td>{{ supplier.country || '—' }}</td>
+                    <td>{{ supplier.contactEmail || '—' }}</td>
+                    <td>{{ supplier.hasEnvironmentalCertification ? 'Yes' : 'No' }}</td>
+                    <td>
+                      <button type="button" class="btn btn--small btn--primary" @click="startEditSupplier(supplier)">Edit</button>
+                      <button type="button" class="btn btn--small btn--danger" @click="deleteSupplier(supplier.id)">Delete</button>
+                    </td>
+                  </template>
+                  <template v-else>
+                    <td>{{ index + 1 }}</td>
+                    <td><input v-model="adminEditForm.name" class="admin-edit-input" type="text" /></td>
+                    <td><input v-model="adminEditForm.country" class="admin-edit-input" type="text" /></td>
+                    <td><input v-model="adminEditForm.contactEmail" class="admin-edit-input" type="email" /></td>
+                    <td><input v-model="adminEditForm.hasEnvironmentalCertification" type="checkbox" /></td>
+                    <td>
+                      <button type="button" class="btn btn--small btn--primary" @click="saveSupplierEdit">Save</button>
+                      <button type="button" class="btn btn--small btn--ghost" @click="cancelSupplierEdit">Cancel</button>
+                    </td>
+                  </template>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- All Shipments -->
+        <div class="admin-shipments">
+          <h3 class="admin-section__subtitle">All Shipments</h3>
+          <div v-if="adminLoading" class="loading-state">Loading...</div>
+          <div v-else-if="allShipments.length === 0" class="empty-state">
+            No shipments found.
+          </div>
+          <div v-else class="shipment-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Origin</th>
+                  <th>Destination</th>
+                  <th>Mode</th>
+                  <th>Supplier</th>
+                  <th>CO2e (kg)</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(shipment, index) in allShipments" :key="shipment.id">
+                  <template v-if="editingShipment !== shipment.id">
+                    <td>{{ index + 1 }}</td>
+                    <td>{{ shipment.origin || '—' }}</td>
+                    <td>{{ shipment.destination || '—' }}</td>
+                    <td>{{ shipment.transportMode?.displayName || shipment.transportMode?.mode || '—' }}</td>
+                    <td>{{ shipment.supplierName || '—' }}</td>
+                    <td>{{ shipment.calculatedCarbonEmission ? shipment.calculatedCarbonEmission.toFixed(2) : '—' }}</td>
+                    <td>
+                      <button type="button" class="btn btn--small btn--primary" @click="startEditShipment(shipment)">Edit</button>
+                      <button type="button" class="btn btn--small btn--danger" @click="deleteShipment(shipment.id)">Delete</button>
+                    </td>
+                  </template>
+                  <template v-else>
+                    <td>{{ index + 1 }}</td>
+                    <td><input v-model="adminEditForm.origin" class="admin-edit-input" type="text" /></td>
+                    <td><input v-model="adminEditForm.destination" class="admin-edit-input" type="text" /></td>
+                    <td><input v-model="adminEditForm.transportMode" class="admin-edit-input" type="text" /></td>
+                    <td><input v-model="adminEditForm.supplierName" class="admin-edit-input" type="text" /></td>
+                    <td>{{ shipment.calculatedCarbonEmission ? shipment.calculatedCarbonEmission.toFixed(2) : '—' }}</td>
+                    <td>
+                      <button type="button" class="btn btn--small btn--primary" @click="saveShipmentEdit">Save</button>
+                      <button type="button" class="btn btn--small btn--ghost" @click="cancelShipmentEdit">Cancel</button>
+                    </td>
+                  </template>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -971,5 +1248,137 @@ onMounted(async () => {
 
 .btn--ghost:hover {
   background-color: #f0f9f4;
+}
+
+/* Admin section styles */
+.admin-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: #f8faf8;
+  border-radius: 8px;
+  border: 1px solid #e0eae0;
+}
+
+.admin-section__title {
+  margin: 0 0 1.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #5f795f;
+}
+
+.admin-section__subtitle {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #3d5c3d;
+}
+
+.admin-section__alert {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.9rem;
+}
+
+.admin-section__alert--ok {
+  background: #ecfdf3;
+  color: #166434;
+}
+
+.admin-suppliers,
+.admin-shipments {
+  margin-bottom: 2rem;
+}
+
+.admin-suppliers:last-child,
+.admin-shipments:last-child {
+  margin-bottom: 0;
+}
+
+.loading-state {
+  padding: 2rem;
+  text-align: center;
+  color: #6b7d6b;
+}
+
+.empty-state {
+  padding: 2rem;
+  text-align: center;
+  color: #6b7d6b;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid #e0eae0;
+}
+
+.supplier-table,
+.shipment-table {
+  overflow: auto;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid #e0eae0;
+}
+
+.supplier-table table,
+.shipment-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.supplier-table th,
+.supplier-table td,
+.shipment-table th,
+.shipment-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e0eae0;
+}
+
+.supplier-table th,
+.shipment-table th {
+  background: #eef4ee;
+  color: #3a4d3a;
+  font-weight: 700;
+}
+
+.supplier-table tr:last-child td,
+.shipment-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Admin action buttons */
+.btn--small {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  margin-right: 0.35rem;
+}
+
+.btn--danger {
+  background-color: #dc2626;
+  color: #fff;
+  border-color: #b91c1c;
+}
+
+.btn--danger:hover:not(:disabled) {
+  background-color: #b91c1c;
+}
+
+/* Admin edit input */
+.admin-edit-input {
+  width: 100%;
+  padding: 0.35rem;
+  border: 1px solid #3cc260;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: #f0f9f4;
+}
+
+.admin-edit-input:focus {
+  outline: none;
+  border-color: #34a853;
+  box-shadow: 0 0 0 0.2rem rgba(60, 194, 96, 0.25);
 }
 </style>

@@ -1,26 +1,85 @@
 import * as echarts from 'echarts'
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS_ZH = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
 
 const YEAR_COLORS = ['#ff7875', '#409eff', '#73d13d', '#9254de', '#faad14', '#13c2c6']
 
-export function getCarbonEmissionsOption(summary) {
+const i18nTexts = {
+  en: {
+    'carbon-emissions': 'Carbon Emissions',
+    'total-emissions': 'Total Emissions',
+    'avoided-emissions': 'Avoided Emissions',
+    'supplier-distribution': 'Supplier Distribution',
+    'certified': 'Certified',
+    'non-certified': 'Non-Certified',
+    'supply-chain-metrics': 'Supply Chain Metrics',
+    'shipments': 'Shipments',
+    'enterprises': 'Enterprises',
+    'carbon-emissions-trend': 'Carbon Emissions Trend',
+    'all-years-emissions': 'All Years Emissions',
+    'emissions-by-shipment-date': 'Emissions by Shipment Date',
+    'share-by-transport-mode': 'Share by Transport Mode',
+    'transport-mode-emission-factors': 'Transport Mode Emission Factors',
+    'history-analysis-overview': 'History Analysis Overview',
+    'total-shipments': 'Total Shipments',
+    'potential-savings': 'Potential Savings',
+    'kg-co2e': 'kg CO2e',
+    'no-date-data': 'No date-based data. Create shipments with shipment dates in Shipment Tracking.',
+    'no-transport-data': 'No transport mode distribution. Save shipments with transport modes to see emission share.',
+    'no-transport-factors-data': 'No transport mode data. System will auto-load all transport modes carbon emission factors.',
+    'count': 'Count',
+    'unknown': 'Unknown',
+  },
+  zh: {
+    'carbon-emissions': '碳排放量',
+    'total-emissions': '总排放量',
+    'avoided-emissions': '避免排放量',
+    'supplier-distribution': '供应商分布',
+    'certified': '已认证',
+    'non-certified': '未认证',
+    'supply-chain-metrics': '供应链指标',
+    'shipments': '运输次数',
+    'enterprises': '企业数量',
+    'carbon-emissions-trend': '碳排放趋势',
+    'all-years-emissions': '所有年份排放',
+    'emissions-by-shipment-date': '按发货日期的排放',
+    'share-by-transport-mode': '运输方式占比',
+    'transport-mode-emission-factors': '运输方式排放因子',
+    'history-analysis-overview': '历史分析概览',
+    'total-shipments': '总运输次数',
+    'potential-savings': '潜在节省',
+    'kg-co2e': '千克CO2e',
+    'no-date-data': '暂无按日数据。请在运输跟踪中新建货运记录；有「发货日期」则按该日期汇总，否则按保存当天汇总。',
+    'no-transport-data': '暂无运输方式分布。保存带运输方式的货运后将显示各方式排放量占比。',
+    'no-transport-factors-data': '暂无运输方式数据。系统将自动加载所有运输方式的碳排放因子对比。',
+    'count': '数量',
+    'unknown': '未知',
+  }
+}
+
+function t(key, locale = 'en') {
+  return i18nTexts[locale]?.[key] || i18nTexts['en'][key] || key
+}
+
+export function getCarbonEmissionsOption(summary, locale = 'en') {
+  const texts = i18nTexts[locale] || i18nTexts['en']
   return {
-    title: { text: 'Carbon Emissions', left: 'center' },
+    title: { text: texts['carbon-emissions'], left: 'center' },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { data: ['Total Emissions', 'Avoided Emissions'], bottom: 10 },
+    legend: { data: [texts['total-emissions'], texts['avoided-emissions']], bottom: 10 },
     grid: { left: '3%', right: '4%', bottom: '15%', top: '15%', containLabel: true },
-    xAxis: { type: 'category', data: ['Emissions (kg CO2e)'] },
+    xAxis: { type: 'category', data: [texts['kg-co2e']] },
     yAxis: { type: 'value' },
     series: [
       {
-        name: 'Total Emissions',
+        name: texts['total-emissions'],
         type: 'bar',
         data: [Number(Number(summary.totalEmissionsKg || 0).toFixed(2))],
         itemStyle: { color: '#ff7875' },
       },
       {
-        name: 'Avoided Emissions',
+        name: texts['avoided-emissions'],
         type: 'bar',
         data: [Number(Number(summary.estimatedAvoidedEmissionsKg || 0).toFixed(2))],
         itemStyle: { color: '#73d13d' },
@@ -29,9 +88,10 @@ export function getCarbonEmissionsOption(summary) {
   }
 }
 
-export function getSupplierDistributionOption(summary) {
+export function getSupplierDistributionOption(summary, locale = 'en') {
+  const texts = i18nTexts[locale] || i18nTexts['en']
   return {
-    title: { text: 'Supplier Distribution', left: 'center' },
+    title: { text: texts['supplier-distribution'], left: 'center' },
     tooltip: { trigger: 'item' },
     legend: { orient: 'vertical', left: 'left', bottom: 10 },
     series: [
@@ -41,10 +101,10 @@ export function getSupplierDistributionOption(summary) {
         radius: '60%',
         center: ['50%', '50%'],
         data: [
-          { value: summary.certifiedSupplierCount || 0, name: 'Certified' },
+          { value: summary.certifiedSupplierCount || 0, name: texts['certified'] },
           {
             value: (summary.registeredSupplierCount || 0) - (summary.certifiedSupplierCount || 0),
-            name: 'Non-Certified',
+            name: texts['non-certified'],
           },
         ],
         emphasis: {
@@ -55,23 +115,24 @@ export function getSupplierDistributionOption(summary) {
   }
 }
 
-export function getSupplyChainMetricsOption(summary) {
+export function getSupplyChainMetricsOption(summary, locale = 'en') {
+  const texts = i18nTexts[locale] || i18nTexts['en']
   return {
-    title: { text: 'Supply Chain Metrics', left: 'center' },
+    title: { text: texts['supply-chain-metrics'], left: 'center' },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: { data: ['Shipments', 'Enterprises'], bottom: 10 },
+    legend: { data: [texts['shipments'], texts['enterprises']], bottom: 10 },
     grid: { left: '3%', right: '4%', bottom: '15%', top: '15%', containLabel: true },
-    xAxis: { type: 'category', data: ['Count'] },
+    xAxis: { type: 'category', data: [texts['count']] },
     yAxis: { type: 'value' },
     series: [
       {
-        name: 'Shipments',
+        name: texts['shipments'],
         type: 'bar',
         data: [summary.shipmentCount || 0],
         itemStyle: { color: '#409eff' },
       },
       {
-        name: 'Enterprises',
+        name: texts['enterprises'],
         type: 'bar',
         data: [summary.enterprisesInSupplyChain || 0],
         itemStyle: { color: '#9254de' },
@@ -80,13 +141,15 @@ export function getSupplyChainMetricsOption(summary) {
   }
 }
 
-export function getCarbonEmissionsTrendOption(summary, availableYears) {
+export function getCarbonEmissionsTrendOption(summary, availableYears, locale = 'en') {
+  const texts = i18nTexts[locale] || i18nTexts['en']
+  const months = locale === 'zh' ? MONTHS_ZH : MONTHS_EN
   const series = []
   const legendData = []
 
-  legendData.push('All Years Emissions')
+  legendData.push(texts['all-years-emissions'])
   series.push({
-    name: 'All Years Emissions',
+    name: texts['all-years-emissions'],
     type: 'line',
     stack: 'Total',
     areaStyle: {
@@ -106,11 +169,11 @@ export function getCarbonEmissionsTrendOption(summary, availableYears) {
   })
 
   ;(availableYears || []).forEach((year, index) => {
-    const yearData = summary.emissionsByYearMonth?.find((item) => item.year === year)
-    if (yearData) {
-      const color = YEAR_COLORS[index % YEAR_COLORS.length]
+      const yearData = summary.emissionsByYearMonth?.find((item) => item.year === year)
+      if (yearData) {
+        const color = YEAR_COLORS[index % YEAR_COLORS.length]
       legendData.push(`${year} Emissions`)
-      series.push({
+        series.push({
         name: `${year} Emissions`,
         type: 'line',
         stack: 'Total',
@@ -133,17 +196,18 @@ export function getCarbonEmissionsTrendOption(summary, availableYears) {
   })
 
   return {
-    title: { text: 'Carbon Emissions Trend', left: 'center' },
+    title: { text: texts['carbon-emissions-trend'], left: 'center' },
     tooltip: { trigger: 'axis' },
     legend: { data: legendData, bottom: 10 },
     grid: { left: '3%', right: '4%', bottom: '15%', top: '15%', containLabel: true },
-    xAxis: { type: 'category', boundaryGap: false, data: MONTHS },
+    xAxis: { type: 'category', boundaryGap: false, data: months },
     yAxis: { type: 'value', name: 'kg CO2e' },
     series,
   }
 }
 
-export function getEmissionsByDateOption(summary) {
+export function getEmissionsByDateOption(summary, locale = 'en') {
+  const texts = i18nTexts[locale] || i18nTexts['en']
   const sortedEmissions = [...(summary.emissionsByShipmentDate || [])].sort(
     (a, b) => new Date(a.date) - new Date(b.date),
   )
@@ -154,7 +218,7 @@ export function getEmissionsByDateOption(summary) {
     return {
       color: ['#528951'],
       title: {
-        text: 'Emissions by shipment date',
+        text: texts['emissions-by-shipment-date'],
         left: 0,
         textStyle: { fontSize: 14, color: '#3d5340' },
       },
@@ -164,7 +228,7 @@ export function getEmissionsByDateOption(summary) {
           left: 'center',
           top: 'center',
           style: {
-            text: '暂无按日数据。请在 Shipment Tracking 新建货运；\n有「发货日期」则按该日期汇总，否则按保存当天汇总。',
+            text: texts['no-date-data'],
             fontSize: 13,
             fill: '#6b7d6b',
             lineHeight: 20,
@@ -183,7 +247,7 @@ export function getEmissionsByDateOption(summary) {
     graphic: [],
     color: ['#528951'],
     title: {
-      text: 'Emissions by shipment date',
+      text: texts['emissions-by-shipment-date'],
       left: 0,
       textStyle: { fontSize: 14, color: '#3d5340' },
     },
@@ -197,7 +261,7 @@ export function getEmissionsByDateOption(summary) {
     },
     yAxis: {
       type: 'value',
-      name: 'kg CO2e',
+      name: texts['kg-co2e'],
       show: true,
       nameGap: 12,
       axisLabel: { margin: 8 },
@@ -206,7 +270,8 @@ export function getEmissionsByDateOption(summary) {
   }
 }
 
-export function getEmissionsByTransportModeOption(summary) {
+export function getEmissionsByTransportModeOption(summary, locale = 'en') {
+  const texts = i18nTexts[locale] || i18nTexts['en']
   const pieDataRaw = (summary.emissionsByTransportMode || []).map((r) => ({
     name: r.transportMode,
     value: Number(Number(r.emissionsKg).toFixed(2)) || 0,
@@ -217,7 +282,7 @@ export function getEmissionsByTransportModeOption(summary) {
     return {
       color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
       title: {
-        text: 'Share by transport mode',
+        text: texts['share-by-transport-mode'],
         left: 0,
         textStyle: { fontSize: 14, color: '#3d5340' },
       },
@@ -227,7 +292,7 @@ export function getEmissionsByTransportModeOption(summary) {
           left: 'center',
           top: 'center',
           style: {
-            text: '暂无运输方式分布。保存带运输方式的货运后将显示各方式排放量占比。',
+            text: texts['no-transport-data'],
             fontSize: 13,
             fill: '#6b7d6b',
             lineHeight: 20,
@@ -243,7 +308,7 @@ export function getEmissionsByTransportModeOption(summary) {
     graphic: [],
     color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
     title: {
-      text: 'Share by transport mode',
+      text: texts['share-by-transport-mode'],
       left: 0,
       textStyle: { fontSize: 14, color: '#3d5340' },
     },
@@ -260,9 +325,10 @@ export function getEmissionsByTransportModeOption(summary) {
   }
 }
 
-export function getTransportModeFactorsOption(transportModes) {
+export function getTransportModeFactorsOption(transportModes, locale = 'en') {
+  const texts = i18nTexts[locale] || i18nTexts['en']
   const transportModeData = (transportModes || []).map((mode) => ({
-    name: mode.displayName || mode.mode || mode.emissionFactor || 'Unknown',
+    name: mode.displayName || mode.mode || mode.emissionFactor || texts['unknown'],
     value: mode.emissionFactorPerKmPerTon || 0,
   }))
 
@@ -270,7 +336,7 @@ export function getTransportModeFactorsOption(transportModes) {
     return {
       color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
       title: {
-        text: 'Transport Mode Emission Factors',
+        text: texts['transport-mode-emission-factors'],
         left: 0,
         textStyle: { fontSize: 14, color: '#3d5340' },
       },
@@ -280,7 +346,7 @@ export function getTransportModeFactorsOption(transportModes) {
           left: 'center',
           top: 'center',
           style: {
-            text: '暂无运输方式数据。系统将自动加载所有运输方式的碳排放因子对比。',
+            text: texts['no-transport-factors-data'],
             fontSize: 13,
             fill: '#6b7d6b',
             lineHeight: 20,
@@ -298,7 +364,7 @@ export function getTransportModeFactorsOption(transportModes) {
     graphic: [],
     color: ['#528951', '#7daf7c', '#a8c9a6', '#d4e5d3'],
     title: {
-      text: 'Transport Mode Emission Factors',
+      text: texts['transport-mode-emission-factors'],
       left: 0,
       textStyle: { fontSize: 14, color: '#3d5340' },
     },
@@ -331,16 +397,17 @@ export function getTransportModeFactorsOption(transportModes) {
   }
 }
 
-export function getHistoryAnalysisOption(analysis) {
+export function getHistoryAnalysisOption(analysis, locale = 'en') {
+  const texts = i18nTexts[locale] || i18nTexts['en']
   return {
-    title: { text: 'History Analysis Overview', left: 'center' },
+    title: { text: texts['history-analysis-overview'], left: 'center' },
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
       formatter: '{b}: {c}',
     },
     grid: { left: '20%', right: '20%', bottom: '15%', top: '15%', containLabel: true },
-    xAxis: { type: 'category', data: ['Total Shipments', 'Potential Savings %'] },
+    xAxis: { type: 'category', data: [texts['total-shipments'], texts['potential-savings']] },
     yAxis: { type: 'value', axisLabel: { formatter: '{value}' } },
     series: [
       {
