@@ -561,7 +561,7 @@ watch(
 
       <div class="toolbar">
         <div class="toolbar-actions">
-          <button type="button" class="btn btn--ghost" :disabled="loading" @click="loadShipments">
+          <button type="button" class="btn btn--ghost" :disabled="loading" @click="loadShipments()">
             {{ loading ? t('loading') : t('refresh') }}
           </button>
           <button v-if="canModify" type="button" class="btn btn--primary" @click="openCreate">{{ t('new-shipment') }}</button>

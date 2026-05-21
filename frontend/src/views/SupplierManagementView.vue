@@ -322,7 +322,7 @@ watch(
           {{ t('certified-suppliers-only') }}
         </label>
         <div class="toolbar-actions">
-          <button type="button" class="btn btn--ghost" :disabled="loading" @click="loadList">
+          <button type="button" class="btn btn--ghost" :disabled="loading" @click="loadList()">
             {{ loading ? t('loading') : t('refresh') }}
           </button>
           <button v-if="canModify" type="button" class="btn btn--primary" @click="openCreate">{{ t('new-supplier') }}</button>
