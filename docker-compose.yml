@@ -15,10 +15,9 @@ services:
       - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      # - ./src/main/resources/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
       - ./src/main/resources/greenchain_backup_newest.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootsecret}"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootsecret}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,27 +25,29 @@ services:
     networks:
       - greenchain-network
 
-  # Spring Boot Backend Service
+  # Spring Boot Backend Service (uses pre-built JAR)
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: eclipse-temurin:21-jre
     container_name: greenchain-backend
     restart: unless-stopped
+    working_dir: /app
     depends_on:
       mysql:
         condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-greenchains}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-greenchain}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-greenpass}
       SERVER_PORT: 8080
       JAVA_OPTS: "-Xms512m -Xmx1024m -XX:+UseContainerSupport"
+    command: [ "sh", "-c", "cp /mnt/greenchains-backend/*.jar app.jar && java $JAVA_OPTS -jar app.jar" ]
+    volumes:
+      - ./target:/mnt/greenchains-backend:ro
     ports:
       - "${APP_PORT:-8080}:8080"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/actuator/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
